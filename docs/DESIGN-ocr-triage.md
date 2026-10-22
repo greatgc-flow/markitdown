@@ -1,6 +1,6 @@
 # Design: OCR triage (markitdown decides, peers OCR)
 
-Status: approved by owner session + cc + cx (rounds 5-7, 2026-10-23); report schema enriched in round 8 at the owner's request (AI-judgeable evidence). Next step: TDD (not started).
+Status: approved by owner session + cc + cx (rounds 5-7, 2026-10-23); report schema enriched in round 8 and usability layer added in rounds 10-11 at the owner's request. Next step: TDD (not started).
 Principle: "so very simple". markitdown never OCRs and never calls an AI. It reports WHICH pages/images likely need OCR;
 peer agents (cc/cx via peerhub, ag banned) do the OCR; assembly is deterministic.
 
@@ -92,6 +92,42 @@ Peer output is untrusted data at assembly.
 
 ag is banned (no quota). Cost pacing: one reused stream per role; the owner approves bulk OCR.
 
+## Usability layer (users and AI agents, minimal effort and tokens) - ships with Phase 1
+1. Layered guide from the one packaged `GUIDE.md` (`## topic` sections): `markitdown --guide` = quick card (<= 2000 chars); `--guide TOPIC` = that section only
+   (topics: formats, ocr, errors, install; each <= 3500 chars); `--guide all` = everything (<= 12000 chars). `nargs='?'`, `const` = quick; guide mode is exclusive with
+   conversion/report arguments; unknown topic lists the topics and exits 2. Budgets are ceilings counted in characters (approx 4 chars/token; Korean costs more).
+2. `--help` epilog: one line "AI agents / quick start: markitdown --guide". README: 5-line Quick start for humans + the same pointer.
+3. `--ocr-report` output contract: without `-o` stdout = JSON only; with `-o FILE` the JSON goes to the file (UTF-8) and ONE summary line goes to stdout
+   (`ocr-report: decision=ocr_recommended high=3 low=0 coverage=complete issues=0 -> r.json`; stdout is otherwise empty so nothing is polluted; chosen over stderr so
+   agent harnesses that hide stderr on success still show it). JSON keys are emitted in a FIXED order built by construction (not `sort_keys`):
+   decision, coverage, summary, candidates, issues, file, options, then pages/images/rasters last, so a truncated read still has the verdict. No `next` field (the guide carries instructions).
+   Output is written as UTF-8 bytes (cp949/cp1252 consoles must not raise). Exit 0 means "a report was produced", including unknown/partial results.
+4. CLI-only hints on stderr (core exception text unchanged, exit status unchanged): after UnsupportedFormat/MissingDependency/FileConversionException print
+   `hint: markitdown --guide errors`; when a conversion succeeded but `markdown.strip()` is empty print `no text extracted; try: markitdown FILE --ocr-report`
+   (silent-empty trap = biggest time/token sink; never for `-o` writes of non-empty output; stdout untouched). The `errors` topic lists only exit codes verified in code.
+5. The `ocr` topic is operational and self-sufficient: verbatim S0-S4 commands (report -> jq -> render recipe -> `peerhub ask ...` -> verify -> assemble), the prompt template,
+   the approval gates, and 3 read-only snippets: `jq '{decision,coverage,summary,candidates,issues}' r.json`, the same in Python with explicit UTF-8, and a single-page lookup.
+   Peers should never need to open this design doc; the design links to the guide to avoid drift. No `--guide --json`, no `next`.
+Quick card (<= 20 lines, drafted by cc+cx):
+```
+MarkItDown: convert files to Markdown (stdout). Inspect output before trusting it.
+  markitdown FILE                 convert        markitdown FILE -o out.md   write file
+  cat FILE | markitdown -x .pdf   stdin (-x = extension hint)
+  markitdown FILE --ocr-report -o r.json   triage: which pages/images need OCR
+  jq '{decision,coverage,summary,candidates,issues}' r.json
+  markitdown --guide TOPIC        topics: formats ocr errors install | all
+  pip install "markitdown[all]"   (or [pdf] [docx] [hwp] ...)
+Traps:
+  1 Scanned PDF/image => EMPTY output, no error => run --ocr-report.
+  2 Missing extra => MissingDependencyException => --guide install.
+  3 HWP/HWPX images are only [IMAGE]; DOCX/PPTX images are truncated refs.
+  4 markitdown never OCRs; peers do after approval (--guide ocr). Report exit 0 = report produced.
+  5 Phase 1 triage: PDF + raster images only; unknown/partial coverage needs attention.
+```
+Usability tests: size ceilings; every topic named in the card exists and is selectable; unknown topic exit 2; exclusivity errors; `ocr` topic contains `--ocr-report`, `-w`,
+`peerhub ask`, `[illegible]` AND its render/jq snippets are executed in a test; summary line printed with `-o`, JSON-only stdout without; key order fixed and verdict-first;
+UTF-8 output under a cp949-like stdout; hints appear only on the specified conditions with unchanged exit status/stdout.
+
 ## Acceptance tests (write first; each asserts its fixture premise)
 Fixtures generated in memory (no private data): text PDF via a ~60-line minimal PDF writer; scan PDF (PIL raster -> PDF); mixed; rotated scan;
 tiled/overlapping images (union area); text page + screenshot; blank page; a caption never suppresses a candidate; cid-garbage via Type0/Identity-H
@@ -105,6 +141,6 @@ Determinism (two subprocesses, different PYTHONHASHSEED, byte-equal); stream pos
 never touches the network (socket patched), never converts. The doc recipe (render + manifest) is executed in a test. CLI: bad flag combos rejected, `-o` works, exit 0.
 
 ## Non-goals (Phase 1)
-Conversion-time warnings / `result.warnings`; stderr hint on empty output (candidate follow-up); `--extract-images`; in-text markers;
+Conversion-time warnings / `result.warnings` (core API unchanged; only CLI-level stderr hints); `--extract-images`; in-text markers;
 automatic merge and cache implementation; Office/HWP adapters (1b); hidden-OCR-layer detection; outlined-text detection;
 per-model OCR quality rankings; dollar-cost estimates; process isolation and timeouts.
