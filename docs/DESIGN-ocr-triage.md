@@ -1,6 +1,6 @@
 # Design: OCR triage (markitdown decides, peers OCR)
 
-Status: round 5 agreed by owner session + cc + cx (2026-10-23); round 6 = final vote. Next step: TDD (not started).
+Status: approved by owner session + cc + cx (rounds 5-7, 2026-10-23; cc's last item was the `frame_cap` enum, fixed). Next step: TDD (not started).
 Principle: "so very simple". markitdown never OCRs and never calls an AI. It reports WHICH pages/images likely need OCR;
 peer agents (cc/cx via peerhub, ag banned) do the OCR; assembly is deterministic.
 
@@ -30,7 +30,7 @@ no peer is available, use this design when peers do the OCR.
  "decision":"ocr_recommended|review|no_candidates|unknown",
  "candidates":[{"id":"p3","kind":"page|image","priority":"high|low","reasons":[..],
    "metrics":{"nonspace_chars":0,"image_area_ratio":1.0,"vector_objects":0,"unresolved_glyph_share":0.0}}],
- "issues":[{"code":"encrypted|corrupt|missing_dependency|unsupported_format|too_large|page_cap|image_probe_failed","detail":".."}]}
+ "issues":[{"code":"encrypted|corrupt|missing_dependency|unsupported_format|too_large|page_cap|frame_cap|image_probe_failed","detail":".."}]}
 ```
 `no_candidates` means "no rule fired within declared coverage", never "OCR unnecessary". Partial/none coverage with no candidates -> `unknown`.
 Decision: any high -> `ocr_recommended`; else any low -> `review`; else coverage complete -> `no_candidates`; else `unknown`.
