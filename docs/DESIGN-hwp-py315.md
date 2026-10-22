@@ -38,7 +38,7 @@ Principle: "so very simple" - minimal change, deliberate non-goals.
    {application/x-hwp, application/x-hwp-v5, application/haansofthwp, application/vnd.hancom.hwp, application/vnd.hancom.hwpx,
    application/hwpx, application/x-hwpx, application/hwp+zip} (superset of #2230; `application/hwp+zip` is the HWPX mimetype file);
    lazy `import rhwp`; `MissingDependencyException` naming extra `hwp`; `rhwp.Document.from_bytes(file_stream.read())`
-   then `.to_ir().to_markdown()`; preserve/restore stream position; register in `enable_builtins`.
+   then `.to_ir().to_markdown()`; register in `enable_builtins`.
 3. Extra `hwp = ["rhwp-python>=0.8.1,<0.9"]`. NOT in `[all]` (no wheels for win-arm64/musl; markers cannot express musl).
    Missing-dep message recommends `markitdown[hwp]`. Document wheel matrix in README.
 4. Output: pass tables through untouched (GFM or HTML). Replace `![alt](bin://N)` with `[Image N omitted]` (regex limited to bin:// image refs).
