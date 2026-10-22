@@ -2,6 +2,7 @@
 import os
 import time
 import pytest
+from ._markers import requires_magika
 import subprocess
 import locale
 import sys
@@ -95,6 +96,7 @@ def test_output_to_file(shared_tmp_dir, test_vector) -> None:
     assert not os.path.exists(output_file), f"Output file not deleted: {output_file}"
 
 
+@requires_magika
 @pytest.mark.parametrize("test_vector", CLI_TEST_VECTORS)
 def test_input_from_stdin_without_hints(shared_tmp_dir, test_vector) -> None:
     """Test that the CLI reads from stdin correctly."""

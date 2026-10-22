@@ -13,6 +13,7 @@ from xml.etree import ElementTree as ET
 
 import mammoth
 import pytest
+from ._markers import requires_magika
 from bs4 import BeautifulSoup
 from lxml import etree
 from mammoth.docx.files import InvalidFileReferenceError
@@ -1314,6 +1315,7 @@ def test_docx_zip_filename_non_casing_mismatch_still_rejected() -> None:
         ), f"{mutated_name!r} must not be silently repaired"
 
 
+@requires_magika
 def test_docx_malformed_equations() -> None:
     """Malformed equations should not crash the converter (issue #1979)."""
     import zipfile

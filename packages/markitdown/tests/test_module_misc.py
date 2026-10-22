@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from ._markers import requires_magika
 import requests
 from charset_normalizer import from_bytes
 
@@ -259,6 +260,7 @@ def test_file_uri_with_percent_encoded_windows_drive(
     assert path == r"C:\Temp\example.md"
 
 
+@requires_magika
 def test_input_as_strings() -> None:
     markitdown = MarkItDown()
 
@@ -731,6 +733,7 @@ def test_charset_sample_completes_only_the_split_character(
     sample.decode("utf-8")
 
 
+@requires_magika
 @pytest.mark.parametrize("character,split", _SPLIT_CHARACTERS)
 def test_split_utf8_json_preserves_content(
     markitdown: MarkItDown, character: str, split: int

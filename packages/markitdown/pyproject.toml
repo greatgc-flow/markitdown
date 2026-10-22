@@ -7,7 +7,7 @@ name = "markitdown"
 dynamic = ["version"]
 description = 'Utility tool for converting various files to Markdown'
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.10,<3.16"
 license = "MIT"
 keywords = []
 authors = [
@@ -21,6 +21,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
@@ -29,7 +30,9 @@ dependencies = [
   "requests",
   "certifi>=2026.10.19",
   "markdownify",
-  "magika>=0.6.1,<2",
+  # TODO: remove marker when ONNX Runtime supports Python 3.15:
+  # https://github.com/microsoft/onnxruntime/issues/33271
+  "magika>=0.6.1,<2; python_full_version < '3.15'",
   "charset-normalizer",
   "defusedxml",
 ]
@@ -47,7 +50,7 @@ all = [
   "olefile",
   "pydub",
   "SpeechRecognition",
-  "youtube-transcript-api~=1.2.3",
+  "youtube-transcript-api~=1.2.3; python_full_version < '3.15'",
   "azure-ai-documentintelligence",
   "azure-ai-contentunderstanding>=1.2.0b1",
   "azure-identity",
@@ -59,7 +62,7 @@ xls = ["pandas", "xlrd"]
 pdf = ["pdfminer.six>=20251230", "pdfplumber>=0.11.9"]
 outlook = ["olefile"]
 audio-transcription = ["pydub", "SpeechRecognition"]
-youtube-transcription = ["youtube-transcript-api~=1.2.3"]
+youtube-transcription = ["youtube-transcript-api~=1.2.3; python_full_version < '3.15'"]
 az-doc-intel = ["azure-ai-documentintelligence", "azure-identity"]
 # >=1.2.0b1 required for to_llm_input() helper used by ContentUnderstandingConverter
 az-content-understanding = ["azure-ai-contentunderstanding>=1.2.0b1", "azure-identity"]
