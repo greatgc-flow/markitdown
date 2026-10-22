@@ -17,7 +17,7 @@ no peer is available, use this design when peers do the OCR.
 2. Core module `markitdown/ocr_triage.py`: `triage(source) -> dict`; source = local path or seekable binary stream (stream position restored).
    Format by magic bytes, no `stream_info`. No URL fetch, no conversion, no LLM client, no network, no temp-file spooling.
 3. CLI: `markitdown FILE --ocr-report [-o report.json]` prints JSON (or writes `-o`), skips conversion, rejects -d/--use-cu/-p. Exit 0 whenever a report was produced.
-4. Deterministic: same bytes + versions + options -> byte-equal JSON (sorted keys, fixed separators, ensure_ascii=False, ratios rounded to 3 decimals,
+4. Deterministic: same bytes + versions + options -> byte-equal JSON (fixed key order built by construction - see Usability layer, fixed separators, ensure_ascii=False, ratios rounded to 3 decimals,
    no timestamps/absolute paths/timings/raw exception text).
 5. Limits (declared in the report): input <= 256 MiB (else hash null, decision unknown, `too_large`); first 1000 pages (else coverage partial, `page_cap`).
    No timeout/process isolation (non-goal; pdfplumber memory use is not bounded by these caps).
@@ -114,7 +114,7 @@ MarkItDown: convert files to Markdown (stdout). Inspect output before trusting i
   markitdown FILE                 convert        markitdown FILE -o out.md   write file
   cat FILE | markitdown -x .pdf   stdin (-x = extension hint)
   markitdown FILE --ocr-report -o r.json   triage: which pages/images need OCR
-  jq '{decision,coverage,summary,candidates,issues}' r.json
+  jq '{decision,coverage,summary,candidates,issues}' r.json   (no jq? --guide ocr has a python -c one-liner)
   markitdown --guide TOPIC        topics: formats ocr errors install | all
   pip install "markitdown[all]"   (or [pdf] [docx] [hwp] ...)
 Traps:
