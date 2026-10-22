@@ -2,6 +2,7 @@
 import os
 import time
 import pytest
+from ._markers import requires_magika
 import base64
 
 from pathlib import Path
@@ -24,6 +25,7 @@ TEST_FILES_DIR = os.path.join(os.path.dirname(__file__), "test_files")
 TEST_FILES_URL = "https://raw.githubusercontent.com/microsoft/markitdown/refs/heads/main/packages/markitdown/tests/test_files"
 
 
+@requires_magika
 @pytest.mark.parametrize("test_vector", GENERAL_TEST_VECTORS)
 def test_guess_stream_info(test_vector):
     """Test the ability to guess stream info."""
@@ -89,6 +91,7 @@ def test_convert_stream_with_hints(test_vector):
             assert string not in result.markdown
 
 
+@requires_magika
 @pytest.mark.parametrize("test_vector", GENERAL_TEST_VECTORS)
 def test_convert_stream_without_hints(test_vector):
     """Test the conversion of a stream with no stream info."""
