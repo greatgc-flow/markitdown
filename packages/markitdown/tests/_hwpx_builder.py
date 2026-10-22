@@ -4,7 +4,6 @@ import io
 import zipfile
 from xml.sax.saxutils import escape
 
-
 _NS = (
     'xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" '
     'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" '
@@ -42,7 +41,8 @@ def _table(merged):
     )
     rows = (
         f"<hp:tr>{first_row}</hp:tr><hp:tr>"
-        f'{_cell("사과", 1, 0)}{_cell("둘", 1, 1)}</hp:tr>'
+        f'{_cell("병합왼쪽" if merged else "일반왼쪽", 1, 0)}'
+        f'{_cell("병합오른쪽" if merged else "일반오른쪽", 1, 1)}</hp:tr>'
     )
     return (
         '<hp:p id="0" paraPrIDRef="0" styleIDRef="0"><hp:run charPrIDRef="0">'
@@ -56,7 +56,7 @@ def _table(merged):
 
 
 def build_hwpx():
-    """Return a minimal package with Korean paragraphs and both table forms."""
+    """Return Korean paragraphs, ordinary/merged tables, image and note refs."""
     header = (
         f'<hh:head {_NS} version="1.4" secCnt="1"><hh:refList>'
         '<hh:charProperties itemCnt="1"><hh:charPr id="0" height="1000" '
@@ -71,11 +71,18 @@ def build_hwpx():
     section = (
         f'<hs:sec {_NS}>{_paragraph("첫 번째 문단입니다.")}'
         f'{_table(False)}{_paragraph("두 번째 문단입니다.")}'
-        f'{_table(True)}{_paragraph("마지막 문단입니다.")}</hs:sec>'
+        f"{_table(True)}"
+        '<hp:p id="1" paraPrIDRef="0" styleIDRef="0"><hp:run charPrIDRef="0">'
+        '<hp:pic><hc:img binaryItemIDRef="image1"/></hp:pic>'
+        '<hp:ctrl><hp:footNote number="1"><hp:subList>'
+        f'{_paragraph("각주 본문입니다.")}</hp:subList></hp:footNote></hp:ctrl>'
+        '<hp:ctrl><hp:endNote number="1"><hp:subList>'
+        f'{_paragraph("미주 본문입니다.")}</hp:subList></hp:endNote></hp:ctrl>'
+        f'</hp:run></hp:p>{_paragraph("마지막 문단입니다.")}</hs:sec>'
     )
     content = (
         f'<opf:package {_NS} version="" unique-identifier="" id="">'
-        '<opf:metadata><opf:title>Synthetic fixture</opf:title></opf:metadata>'
+        "<opf:metadata><opf:title>Synthetic fixture</opf:title></opf:metadata>"
         '<opf:manifest><opf:item id="header" href="Contents/header.xml" '
         'media-type="application/xml"/><opf:item id="section0" '
         'href="Contents/section0.xml" media-type="application/xml"/>'
