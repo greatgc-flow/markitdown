@@ -1,6 +1,6 @@
 # Design: OCR triage (markitdown decides, peers OCR)
 
-Status: approved by owner session + cc + cx (rounds 5-7, 2026-10-23; cc's last item was the `frame_cap` enum, fixed). Next step: TDD (not started).
+Status: approved by owner session + cc + cx (rounds 5-7, 2026-10-23); report schema enriched in round 8 at the owner's request (AI-judgeable evidence). Next step: TDD (not started).
 Principle: "so very simple". markitdown never OCRs and never calls an AI. It reports WHICH pages/images likely need OCR;
 peer agents (cc/cx via peerhub, ag banned) do the OCR; assembly is deterministic.
 
@@ -22,18 +22,33 @@ no peer is available, use this design when peers do the OCR.
 5. Limits (declared in the report): input <= 256 MiB (else hash null, decision unknown, `too_large`); first 1000 pages (else coverage partial, `page_cap`).
    No timeout/process isolation (non-goal; pdfplumber memory use is not bounded by these caps).
 
-## Report v1
+## Report v1 (evidence for AI judgement; verified against real pdfplumber objects 2026-10-23)
+Principle: expose bounded OBSERVATIONS for every inspected page/image, never inferred labels such as "photo" or "scan" (rules produce `candidates`; the AI decides further).
+Reading order for AI: `decision` -> `summary` -> `candidates` -> then `pages`/`images` only as needed (use `jq`; `pages` can be ~1000 rows).
 ```
 {"schema_version":1,"rules_version":"1",
  "file":{"sha256":str|null,"bytes":int,"format":"pdf|image|unknown"},
  "coverage":{"state":"complete|partial|none","pages_total":int|null,"pages_inspected":int,"limits":{"max_bytes":..,"max_pages":..}},
  "decision":"ocr_recommended|review|no_candidates|unknown",
- "candidates":[{"id":"p3","kind":"page|image","priority":"high|low","reasons":[..],
-   "metrics":{"nonspace_chars":0,"image_area_ratio":1.0,"vector_objects":0,"unresolved_glyph_share":0.0}}],
+ "summary":{"scope":"inspected","pages_with_text":int,"nonspace_chars":int,"image_occurrences":int,"candidates_high":int,"candidates_low":int},
+ "pages":[{"n":1,"bbox_pt":[0,0,408,528],"rotation":0,
+   "chars":0,"nonspace_chars":0,"unresolved_glyph_share":0.0,"cid_count":0,"replacement_count":0,"private_use_count":0,
+   "vector_objects":0,"image_area_ratio":1.0,"image_count":1,"images_truncated":false,
+   "images":[{"name":"image","bbox_pt":[0,0,408,528],"px":[850,1100],"dpi_xy":[150.0,150.0],"area_ratio":1.0,
+              "colorspace":["DeviceRGB"],"bits":8,"imagemask":false,"filter":"DCTDecode"}],
+   "text_sample":"..."}],
+ "rasters":[{"id":"image|f1..fN","frame":1,"px":[w,h],"mode":"RGB","dpi_tag":null,"exif_orientation":1,"bytes":int}],
+ "candidates":[{"id":"p3|image|f2","kind":"page|image","page":3,"priority":"high|low","reasons":[..]}],
  "issues":[{"code":"encrypted|corrupt|missing_dependency|unsupported_format|too_large|page_cap|frame_cap|image_probe_failed","detail":".."}]}
 ```
-`no_candidates` means "no rule fired within declared coverage", never "OCR unnecessary". Partial/none coverage with no candidates -> `unknown`.
-Decision: any high -> `ocr_recommended`; else any low -> `review`; else coverage complete -> `no_candidates`; else `unknown`.
+- Candidates reference the page/raster row (no duplicated metrics). `null` = unavailable; omitted images are counted (`image_count` vs listed, `images_truncated`).
+- Images per page: at most 20 listed, ordered by (top, x0) rounded; `dpi_xy` = srcsize / (UNCLIPPED placement bbox in inches), null for skewed/degenerate placements;
+  `area_ratio` uses the bbox clipped to the page. `filter` (e.g. CCITTFaxDecode/JBIG2Decode suggest scanned bitonal pages; DCTDecode = JPEG) comes from the image stream attrs, null if absent.
+  No pixel statistics, entropy, per-image hashes or repeat flags (repeats are inferable from name + px); no inferred photo/scan label.
+- `text_sample` is OFF by default (reports get pasted into chats and may hold sensitive text); `--ocr-report-samples` adds <= 120 normalized chars per page and records the option in the report (`"options":{"samples":true}`).
+  A sample cannot prove the text layer is correct.
+- `no_candidates` means "no rule fired within declared coverage", never "OCR unnecessary". Partial/none coverage with no candidates -> `unknown`.
+  Decision: any high -> `ocr_recommended`; else any low -> `review`; else coverage complete -> `no_candidates`; else `unknown`.
 
 ## Rules (PDF, per page, pdfplumber objects)
 - nonspace_chars = non-whitespace chars in `page.chars`; image_area_ratio = area of the UNION of image bboxes clipped to the page, / page area (no double counting).
@@ -84,6 +99,7 @@ exactly-at-threshold pages (chars 29/30, ratio 0.49/0.5 and 0.149/0.15, share 0.
 Failure paths -> an issue and never an exception: 0-byte, truncated, random bytes named .pdf, encrypted (monkeypatched), missing pdfplumber, beyond limits
 (monkeypatched) all give `decision: unknown`; a standalone image with missing Pillow/probe failure keeps its candidate (`ocr_recommended` + `image_probe_failed`).
 Multi-frame TIFF/GIF: per-frame candidates, `frame_cap` -> partial. `GUIDE.md` mentions `--ocr-report` (test). `.gitignore` lists `ocr-work/` and `.ocr-cache/`.
+Schema evidence: every inspected page has a `pages` row; image fields match a real fixture (srcsize/dpi/colorspace/filter); >20 images -> `images_truncated`; dpi uses unclipped bounds; samples absent unless `--ocr-report-samples`.
 Determinism (two subprocesses, different PYTHONHASHSEED, byte-equal); stream position restored; report mode never builds an LLM client,
 never touches the network (socket patched), never converts. The doc recipe (render + manifest) is executed in a test. CLI: bad flag combos rejected, `-o` works, exit 0.
 
