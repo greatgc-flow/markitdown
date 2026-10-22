@@ -74,6 +74,8 @@ pip install -e 'packages/markitdown[all]'
 
 ### Command-Line
 
+AI agents: run `markitdown --guide` for a compact usage guide (formats, silent-empty-output checks, OCR triage, errors).
+
 ```bash
 markitdown path-to-file.pdf > document.md
 ```
