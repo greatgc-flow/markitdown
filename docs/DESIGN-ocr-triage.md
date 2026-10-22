@@ -35,16 +35,17 @@ Reading order for AI: `decision` -> `summary` -> `candidates` -> then `pages`/`i
    "chars":0,"nonspace_chars":0,"unresolved_glyph_share":0.0,"cid_count":0,"replacement_count":0,"private_use_count":0,
    "vector_objects":0,"image_area_ratio":1.0,"image_count":1,"images_truncated":false,
    "images":[{"name":"image","bbox_pt":[0,0,408,528],"px":[850,1100],"dpi_xy":[150.0,150.0],"area_ratio":1.0,
-              "colorspace":["DeviceRGB"],"bits":8,"imagemask":false,"filter":"DCTDecode"}],
+              "colorspace":["DeviceRGB"],"bits":8,"imagemask":false,"filter":["DCTDecode"]}],
    "text_sample":"..."}],
  "rasters":[{"id":"image|f1..fN","frame":1,"px":[w,h],"mode":"RGB","dpi_tag":null,"exif_orientation":1,"bytes":int}],
  "candidates":[{"id":"p3|image|f2","kind":"page|image","page":3,"priority":"high|low","reasons":[..]}],
  "issues":[{"code":"encrypted|corrupt|missing_dependency|unsupported_format|too_large|page_cap|frame_cap|image_probe_failed","detail":".."}]}
 ```
+- Float rounding: `bbox_pt` and `dpi_xy` to 1 decimal, ratios to 3 decimals, so determinism never depends on pdfplumber float representation.
 - Candidates reference the page/raster row (no duplicated metrics). `null` = unavailable; omitted images are counted (`image_count` vs listed, `images_truncated`).
 - Images per page: at most 20 listed, ordered by (top, x0) rounded; `dpi_xy` = srcsize / (UNCLIPPED placement bbox in inches), null for skewed/degenerate placements;
-  `area_ratio` uses the bbox clipped to the page. `filter` (e.g. CCITTFaxDecode/JBIG2Decode suggest scanned bitonal pages; DCTDecode = JPEG) comes from the image stream attrs, null if absent.
-  No pixel statistics, entropy, per-image hashes or repeat flags (repeats are inferable from name + px); no inferred photo/scan label.
+  `area_ratio` uses the bbox clipped to the page. `filter` is a nullable LIST of names from the image stream attrs (chained filters possible; e.g. CCITTFaxDecode/JBIG2Decode suggest scanned bitonal pages, DCTDecode = JPEG).
+  No pixel statistics, entropy, per-image hashes or repeat flags (PDF resource names are locally scoped and equal sizes do not prove equal content; content identity is a non-goal); no inferred photo/scan label.
 - `text_sample` is OFF by default (reports get pasted into chats and may hold sensitive text); `--ocr-report-samples` adds <= 120 normalized chars per page and records the option in the report (`"options":{"samples":true}`).
   A sample cannot prove the text layer is correct.
 - `no_candidates` means "no rule fired within declared coverage", never "OCR unnecessary". Partial/none coverage with no candidates -> `unknown`.
