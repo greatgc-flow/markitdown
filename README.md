@@ -33,7 +33,9 @@ Markdown-formatted text, and understand it well. As a side benefit, Markdown con
 are also highly token-efficient.
 
 ## Prerequisites
-MarkItDown requires Python 3.10 through 3.14. It is recommended to use a virtual environment to avoid dependency conflicts.
+MarkItDown requires Python 3.10 through 3.15. It is recommended to use a virtual environment to avoid dependency conflicts.
+
+On Python 3.15, Magika-based content sniffing is unavailable. Extension-less streams need `StreamInfo` hints such as an extension or MIME type.
 
 With the standard Python installation, you can create and activate a virtual environment using the following commands:
 
