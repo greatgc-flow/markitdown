@@ -13,6 +13,7 @@ MarkItDown currently supports the conversion from:
 - PDF
 - PowerPoint
 - Word
+- HWP/HWPX (optional `[hwp]` extra)
 - Excel
 - Images (EXIF metadata and OCR)
 - Audio (EXIF metadata and speech transcription)
@@ -90,7 +91,7 @@ cat path-to-file.pdf | markitdown
 ```
 
 ### Optional Dependencies
-MarkItDown has optional dependencies for activating various file formats. Earlier in this document, we installed all optional dependencies with the `[all]` option. However, you can also install them individually for more control. For example:
+MarkItDown has optional dependencies for activating various file formats. The `[all]` option includes these except HWP/HWPX, which requires `[hwp]`. You can also install them individually for more control. For example:
 
 ```bash
 pip install 'markitdown[pdf, docx, pptx]'
@@ -100,7 +101,8 @@ will install only the dependencies for PDF, DOCX, and PPTX files.
 
 At the moment, the following optional dependencies are available:
 
-* `[all]` Installs all optional dependencies
+* `[all]` Installs optional dependencies except HWP/HWPX
+* `[hwp]` Installs dependencies for HWP5 and HWPX files
 * `[pptx]` Installs dependencies for PowerPoint files
 * `[docx]` Installs dependencies for Word files
 * `[xlsx]` Installs dependencies for Excel files
@@ -111,6 +113,16 @@ At the moment, the following optional dependencies are available:
 * `[az-content-understanding]` Installs dependencies for Azure Content Understanding
 * `[audio-transcription]` Installs dependencies for audio transcription of wav and mp3 files
 * `[youtube-transcription]` Installs dependencies for fetching YouTube video transcription
+
+### HWP/HWPX
+
+Install HWP5 and HWPX support separately with `pip install 'markitdown[hwp]'`. It uses `rhwp-python` and is not included in `[all]`.
+
+Prebuilt wheels are available for Windows x64 (`win_amd64`), macOS x64/arm64, and manylinux x86_64/aarch64. Other platforms, including Windows ARM64 and musl Linux, need a Rust source build.
+
+Ordinary tables remain GFM pipe tables; merged-cell tables remain inline HTML. Embedded images become `[Image N omitted]` placeholders. Existing global Markdown whitespace normalization still applies.
+
+HWP versions before 5.0, encrypted/distribution documents, exact page layout, headers/footers, image extraction, OCR, and writing HWP are not supported. No table normalization, replacement parser, or document size/time limits are added. A valid HWPX ZIP with invalid document XML may fall through to the existing ZIP converter when a ZIP format guess is available.
 
 ### Plugins
 
