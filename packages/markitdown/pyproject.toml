@@ -39,6 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 all = [
+  "hwp-hwpx-parser>=1.0,<1.1",
   "python-pptx",
   "mammoth>=1.12.2,<2",
   "pandas",
@@ -56,6 +57,7 @@ all = [
   "azure-identity",
 ]
 pptx = ["python-pptx"]
+hwp = ["hwp-hwpx-parser>=1.0,<1.1"]
 docx = ["mammoth>=1.12.2,<2", "lxml"]
 xlsx = ["pandas", "openpyxl"]
 xls = ["pandas", "xlrd"]

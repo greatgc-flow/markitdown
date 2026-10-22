@@ -1,6 +1,6 @@
 # Design: HWP/HWPX support and Python 3.15 (fork greatgc-flow/markitdown)
 
-Status: design agreed by owner session + cc + cx (rounds 1-2, 2026-10-22); open question Q-A (HWP5 fixture author). Next step: TDD.
+Status: round-4 backend change agreed by owner + cc + cx; TDD rework. Q-A (owner-authored HWP5 fixture) remains open.
 Principle: "so very simple" - minimal change, deliberate non-goals.
 
 ## Evidence (verified 2026-10-22, Python 3.15.1, Windows x64)
@@ -8,13 +8,19 @@ Principle: "so very simple" - minimal change, deliberate non-goals.
 - With override, resolution still fails: `magika` -> `onnxruntime` has no cp315 wheel (microsoft/onnxruntime#33271).
 - `[all]` also blocked by `youtube-transcript-api~=1.2.3` (releases declare `<3.15`).
 - All other deps resolve (lxml, pandas, numpy, pillow, cryptography, mammoth, pdf*, pptx, olefile, openpyxl, xlrd).
-- `rhwp-python` 0.8.1 (MIT, PyO3, abi3 cp310) installs/runs on 3.15.1; ~0.1s for a 400 KB HWP and an 8.7 MB HWPX.
-  Wheels: win_amd64, macOS x64/arm64, manylinux x86_64/aarch64. No musllinux, no win_arm64 (sdist needs Rust).
-- `Document.from_bytes(data)` exists -> no temp file needed. `to_ir().to_markdown()` has no options.
-  Tables: GFM when no merged cells, inline HTML `<table>` when any merged cell. Images: `![](bin://N)` (dangling). Headers/footers omitted.
+- `hwp-hwpx-parser` 1.0.0: pure Python, Apache-2.0, py3-none-any; dependencies olefile + python-docx.
+  Supports HWP5/HWPX; public read API requires a path. Tables are returned inline during extraction.
+  Merged-cell spans are lost. `extract_text_with_notes()` returns note bodies separately; SIMPLE images emit `[IMAGE]`.
 - setup-python manifest has stable 3.15.1 for linux/win/macOS (x64 and arm64).
 - Converter priority: specific = 0 (tried before Zip/PlainText/Html = 10).
-- Upstream PR microsoft/markitdown#2230 (rhwp-python, adds to `[all]`, uv.lock, fixtures of unclear license) is unreviewed.
+- Upstream PR microsoft/markitdown#2230 (rhwp, adds to `[all]`, uv.lock, fixtures of unclear license) is unreviewed.
+
+## Round 4 decision
+Switch to `hwp-hwpx-parser>=1.0,<1.1`, including in `[all]`: rhwp 0.8.1 fails Linux import
+with undefined FreeType symbol `FT_Palette_Data_Get` (CI and [rhwp#31](https://github.com/DanMeon/rhwp-python/issues/31)).
+Accept merged-cell fidelity loss: flatten cells into pipe rows, preserving text and order. No hybrid or Linux workaround.
+Keep the adapter small (roughly 40 lines of conversion logic plus routing/cleanup), allowing a later swap if rhwp#31 is fixed.
+The parser's reported hang risk remains; private smoke probes use 20-second subprocess timeouts, not production time limits.
 
 ## Decisions
 ### Branch/PR 1 - Python 3.15 compatibility
@@ -33,27 +39,25 @@ Principle: "so very simple" - minimal change, deliberate non-goals.
 6. Check sibling packages (mcp/ocr/sample-plugin: `requires-python >=3.10`, depend on markitdown) install on 3.15.
 
 ### Branch/PR 2 - HWP/HWPX
-1. Backend: `rhwp-python>=0.8.1,<0.9` only. No own parser, no hybrid. Accept single-maintainer 0.x risk; adapter stays ~40 lines.
-2. `converters/_hwp_converter.py` `HwpConverter`: accepts extension `.hwp`/`.hwpx` or mimetype prefix in
-   {application/x-hwp, application/x-hwp-v5, application/haansofthwp, application/vnd.hancom.hwp, application/vnd.hancom.hwpx,
-   application/hwpx, application/x-hwpx, application/hwp+zip} (superset of #2230; `application/hwp+zip` is the HWPX mimetype file);
-   lazy `import rhwp`; `MissingDependencyException` naming extra `hwp`; `rhwp.Document.from_bytes(file_stream.read())`
-   then `.to_ir().to_markdown()`; register in `enable_builtins`.
-3. Extra `hwp = ["rhwp-python>=0.8.1,<0.9"]`. NOT in `[all]` (no wheels for win-arm64/musl; markers cannot express musl).
-   Missing-dep message recommends `markitdown[hwp]`. Document wheel matrix in README.
-4. Output: pass tables through untouched (GFM or HTML). Replace `![alt](bin://N)` with `[Image N omitted]` (regex limited to bin:// image refs).
-   No image extraction, OCR, table options.
-5. CI: HWP job(s) install `[all,hwp]`; ARM job stays `[all]`. HWP integration tests fail (not skip) when rhwp is absent on the designated job.
-6. Fixtures. HWPX: generated in-memory by a small test helper (stdlib zipfile; verified 2026-10-22 that rhwp parses a hand-built
-   mimetype+container+content.hpf+header.xml+section0.xml package) - Korean text, ordering, ordinary table, merged-cell table; no binary committed.
-   HWP5 (binary OLE, no hand-build route; rhwp cannot export HWP5): one tiny owner-authored `.hwp` committed with provenance
-   (owner-saved from Hancom: few Korean lines + 2x2 table + merged table; question Q-A open). Until it exists HWP5 is covered by mock-routing tests only.
-   Do NOT use #2230 fixtures (KOGL type 2), rhwp repo samples (unclear provenance) or the owner's private samples
-   (`D:\PkgDev\workspace\*.hwp*`: local-only env-gated smoke tests, never committed/uploaded).
+1. Backend: `hwp-hwpx-parser>=1.0,<1.1` only, no own parser or hybrid.
+2. `HwpConverter` accepts `.hwp`/`.hwpx` or mimetype prefixes in
+   {application/x-hwp, application/x-hwp-v5, application/haansofthwp, application/vnd.hancom.hwp,
+   application/vnd.hancom.hwpx, application/hwpx, application/x-hwpx, application/hwp+zip}.
+   Lazy `import hwp_hwpx_parser`; missing dependency recommends `markitdown[hwp]`.
+   Register in `enable_builtins`. Select temporary suffix from extension, then MIME, then OLE/ZIP magic.
+   Write a NamedTemporaryFile(delete=False), CLOSE before public `read(path)` (Windows), always close Reader and unlink in finally.
+3. Extra `hwp = ["hwp-hwpx-parser>=1.0,<1.1"]`; same dependency in `[all]` (pure Python, all platforms).
+4. `ExtractOptions(table_style=MARKDOWN, image_marker=SIMPLE)` and `extract_text_with_notes()`.
+   Pipe tables remain inline in document order; merged-cell spans are deliberately lost, cell text preserved once.
+   Images become `[IMAGE]`; append footnote/endnote Markdown definitions. No bin-reference regex or image extraction.
+5. Normal CI tests install `[all]` and require the backend on all platforms. No dedicated HWP job or optional-backend skips.
+6. HWPX: owned in-memory stdlib ZIP fixture with Korean paragraphs, ordinary/merged tables, picture reference, footnote/endnote.
+   HWP5: pending owner-authored `tests/test_files/test_hwp5.hwp` with provenance; fake-backend routing until available.
+   Never copy external fixtures or private content. Owner-private files remain local-only and uncommitted.
 
 ### Delivery
 - Fork-first: two focused branches/PRs on greatgc-flow/markitdown (batch, CI is slow). Local tests first.
-- Upstream: no competing PR; comment findings on #2230 (all breaks on win-arm/musl, dangling bin:// refs, fixture licensing); 3.15 change is a separate upstream candidate.
+- Upstream: no competing PR; share backend portability, output, and fixture-provenance findings on #2230; 3.15 change is a separate upstream candidate.
 
 ## Acceptance tests (write first; each falsifiable)
 Py3.15 / magika (run on every job, py3.10-3.14 included, via `monkeypatch.setitem(sys.modules, "magika", None)` before constructing `MarkItDown`):
@@ -62,15 +66,22 @@ Py3.15 / magika (run on every job, py3.10-3.14 included, via `monkeypatch.setite
 - `Magika()` raising `RuntimeError` propagates (not swallowed).
 - Packaging: clean install of the checkout/built wheel on 3.15 for `markitdown` and `markitdown[all]` resolves (CI Ubuntu + Windows x64 3.15); suite passes on 3.10-3.15; siblings (mcp/ocr/sample-plugin) install on 3.15.
 HWP:
-- `accepts()`: positive for each extension and each listed mimetype; negative for `.zip`, `.docx`, `application/zip`, no hints.
-- direct `HwpConverter.convert` with rhwp absent -> `MissingDependencyException` matching `markitdown\[hwp\]`; through `MarkItDown.convert_stream` -> `FileConversionException` (wraps it). Mirror guarded-import test in a fresh subprocess.
-- generated HWPX: non-empty, Korean text in document order, ordinary table as GFM, merged-cell table stays `<table>` (guards fixture degradation).
-- image placeholder: pure unit test of the regex on literals: `![x](bin://3)` -> `[Image 3 omitted]`; `![x](https://e.com/a.png)` untouched; text containing "bin://" outside image syntax untouched.
-- truncated HWPX bytes (and truncated HWP) via public API -> `FileConversionException`. Known limitation (non-goal): a *valid* zip with junk XML may be converted by ZipConverter via the extra `.zip` guess when magika is present; not handled.
-- stream position: converter restores/leaves position as the harness expects on success and on failure (harness already seeks in `finally`; only assert for direct `convert` calls).
-- CI: designated HWP job installs `[all,hwp]` and FAILS if rhwp is missing (`MARKITDOWN_REQUIRE_HWP=1` -> importorskip becomes assert); ARM job stays `[all]`, HWP tests skipped there.
-- Owner-private samples: env-gated (`MARKITDOWN_HWP_SMOKE_DIR`) local smoke only, assert non-empty/no exception, never in CI.
+- Positive accepts for each extension/MIME; negative for ZIP, DOCX, no hints; accepts never consumes bytes.
+- Missing parser: direct MissingDependencyException matching `markitdown[hwp]`; public FileConversionException wrapping it.
+  Public failure tests use `MarkItDown(enable_builtins=False)` + only HwpConverter, independent of Magika/PlainText fallback.
+  Verify lazy import in a fresh subprocess.
+- Generated HWPX: Korean paragraphs/tables in order, ordinary pipe table; every ordinary/merged cell text exactly once.
+  Real extraction emits `[IMAGE]`; footnote/endnote bodies and matching Markdown definitions appear once.
+- Garbage, truncated ZIP, OLE-less HWP through restricted public API -> FileConversionException.
+  Valid ZIP with invalid XML can still fall through to ZipConverter in the general pipeline: pre-existing non-goal.
+- Path-only API: closed temporary input, correct suffix by extension/MIME/magic; Reader closed and file unlinked on success,
+  reader creation/extraction/close failure, and write failure. Direct conversion consumes remaining stream bytes.
+- Backend tests always run in `[all]` CI; no importorskip or backend-require flag.
+- Pending owner-authored HWP5 fixture skips with reason 'owner-authored HWP5 fixture pending'.
+- Env-gated `MARKITDOWN_HWP_SMOKE_DIR`: local private conversions in 20-second subprocesses, nonempty/no exception,
+  counts only, never in CI or committed/uploaded.
 
 ## Non-goals
 Own HWP/HWPX parser, HWP < 5.0, encrypted/distribution docs, exact page layout, headers/footers, image extraction/OCR/data URIs,
-table-format options, platform-marker tricks for `[all]`, uv.lock, valid-zip-with-junk-XML detection, timeouts/size guards, magika replacement detector.
+merged-cell fidelity (accepted text-preserving flattening), table-format options, platform-marker tricks, uv.lock,
+valid-zip-with-junk-XML detection, production timeouts/size guards, magika replacement detector.

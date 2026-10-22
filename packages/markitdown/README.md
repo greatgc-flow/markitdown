@@ -16,6 +16,8 @@ From PyPI:
 pip install 'markitdown[all]'
 ```
 
+HWP5/HWPX support is included in `[all]` or installed separately with `pip install 'markitdown[hwp]'`. The backend is pure Python for all platforms. Tables use pipe rows (merged cells lose their spans), images become `[IMAGE]` placeholders, and note bodies are included. HWP < 5, encrypted/distribution documents, headers/footers, and exact layout are unsupported. See the project [HWP/HWPX documentation](https://github.com/greatgc-flow/markitdown#hwphwpx) for details.
+
 From source:
 
 ```bash
