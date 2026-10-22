@@ -140,8 +140,18 @@ def main():
         help="Keep data URIs (like base64-encoded images) in the output. By default, data URIs are truncated.",
     )
 
+    parser.add_argument(
+        "--guide",
+        action="store_true",
+        help="Print a compact usage guide for AI agents and exit.",
+    )
+
     parser.add_argument("filename", nargs="?")
     args = parser.parse_args()
+
+    if args.guide:
+        _print_guide()
+        return
 
     # Parse the extension hint
     extension_hint = args.extension
@@ -259,6 +269,16 @@ def main():
         )
 
     _handle_output(args, result)
+
+
+def _print_guide():
+    """Write the packaged GUIDE.md to stdout as UTF-8."""
+    from importlib import resources
+
+    guide = resources.files(__package__).joinpath("GUIDE.md").read_bytes()
+    sys.stdout.flush()
+    sys.stdout.buffer.write(guide)
+    sys.stdout.buffer.flush()
 
 
 def _handle_output(args, result: DocumentConverterResult):
