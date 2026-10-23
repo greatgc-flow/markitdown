@@ -74,6 +74,6 @@ External programs (NOT installed by pip; optional, install only when needed; che
 - exiftool (>= 12.24): adds EXIF/tag metadata lines for images and audio; without it conversion still works. Set `EXIFTOOL_PATH` if it is not on PATH.
   Windows `winget install OliverBetz.ExifTool` | macOS `brew install exiftool` | Debian/Ubuntu `sudo apt install libimage-exiftool-perl`.
 - ffmpeg: decodes audio for `[audio-transcription]` only. Windows `winget install Gyan.FFmpeg` | macOS `brew install ffmpeg` | Debian/Ubuntu `sudo apt install ffmpeg`.
-- Audio transcription is Google's online speech service (the audio leaves the machine; not for sensitive recordings), default language en-US.
+- Audio transcription uses Google's free web speech endpoint with a shared key: the audio leaves the machine (not for sensitive recordings), it can be rate-limited or revoked at any time (testing/personal use), default language en-US.
   Korean: Python API only, `MarkItDown().convert("a.mp3", language="ko-KR")`; the CLI has no language option.
 - OCR (`--guide ocr`) needs none of these.
