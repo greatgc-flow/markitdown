@@ -193,3 +193,26 @@ Reviewed by cc and cx (unanimous; ag not yet consulted). Design only, nothing im
 - Output labels: `DRAFT - not verified` until both reads and reconciliation pass, then `dual-read, human-unsigned` until sign-off. markitdown never asserts certification.
 - Validation: owner-supplied Korean samples with human-adjudicated ground truth; report CER and exact-match rates for numerics, dates, IDs, names; include omissions, hallucinations, hard scans, stamps, handwriting; owner-approved thresholds, held-out samples, revalidate on any model/prompt change. Private data stays out of git; commit only synthetic fixtures and approved aggregates.
 - Non-goal: markitdown never certifies evidence or guarantees admissibility; that is for a human/lawyer.
+
+## Round 13: images in output, HWP backends, CLI, discoverability (cc+cx agreed; ag not consulted)
+Design only. Implementation needs the owner's go; ag retro-check after its quota returns.
+
+Images in Markdown
+- Default stays placeholders (no image bytes in stdout). Inline original base64 is opt-in only (`--keep-data-uris`, where the format supports it). Reason: token cost. Sum of 4*ceil(n/3) over raw media; the owner's real 8.7 MB HWPX holds 15.4 MB raw media = 20.5 M base64 chars, millions of tokens, and a text model does not decode Markdown base64 as vision input anyway.
+- No automatic recompression. zlib on BMP shrinks a lot, JPEG/PNG almost nothing, and a compressed wrapper is not a decodable data URI. Lossless re-encode and thumbnails are separate, separately identified derivatives, never the evidence copy.
+- New opt-in `--extract-media DIR` (mutually exclusive with `--keep-data-uris`): writes original bytes unchanged, names by content hash, rewrites each placeholder to a relative path, records missing/unsupported (e.g. WMF) media explicitly, rejects traversal/collisions. Keeps `--ocr-report` ids (ZIP member path) unchanged; an asset id may have several occurrences. Evidence mode keeps original bytes + sha256 + member/stream identity (HWP5: stored OLE stream vs decompressed payload).
+
+HWP/HWPX backends (experiments)
+- hwp-hwpx-parser 1.0.0 already returns HWP5 BinData images (private sample: 2 JPEG, markers 2) and HWPX raster images; its `get_images()` skips WMF (private HWPX: 9 BinData = 2 BMP, 3 JPEG, 1 PNG, 3 WMF, parser returned 6). So HWP5 media triage is an implementation gap, not a parser limit. Next: add HWP5 media to triage via the parser; account for WMF as unsupported media, never silently dropped.
+- PR microsoft/markitdown#2230 (rhwp-python `to_ir().to_markdown()`) does NOT solve images: its Markdown has `bin://N` references only, no bytes. rhwp-python 0.8.1 can give picture blocks + `bytes_for_image` (but warns mixed linked/embedded BinData can return the wrong entry) and `render_png(page, scale)` (scale sets pixels, dpi is metadata only).
+- Local runtime test (py3.15, Windows): rhwp parsed the private HWP (48 pages) and HWPX (16 pages) and rendered a valid PNG of page 1 in ~0.2 s each. Fidelity is NOT yet visually checked (private docs must not go to a model). Page rasters would let HWP/HWPX scans and drawings be OCR'd like PDFs.
+- Decision: keep hwp-hwpx-parser as primary. Evaluate rhwp-python as an OPTIONAL renderer/second backend (extra, never default) after: synthetic-fixture visual check, byte-identity tests, mixed Link/Embedding test, clean Linux wheel import (#31 still open, 0.8.1 latest as of 2026-10-23).
+
+CLI
+- Add only `--extract-media DIR`. No `--images` vocabulary, no `assemble` yet (needs a manifest/ordering/verification contract first; the documented append recipe stays).
+- `--ocr-report`: JSON to stdout, or only to `-o`; the one-line summary moves to stderr (today `-o` also prints it on stdout). Exit 0 = report produced (inspect decision/coverage), 1 = execution/output failure, 2 = invalid arguments. Reject ineffective option combinations instead of ignoring them. Shorten the usage block.
+
+Discoverability
+- Quick card (<=2000 chars, ~1100 proposed) gets a "Next steps" block: empty/scanned output or image placeholders -> `--ocr-report`; exit 0 means check decision/coverage; OCR needs approval and verification; image bytes omitted by default; HWP5 triage unsupported (until added).
+- Converter emits STATIC stderr hints driven by converter observations (not by matching document text): "no text extracted; inspect the source and run markitdown FILE --ocr-report" is replaced by a form without the filename; "image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr."; existing "markitdown --guide errors". Deduplicated per conversion, never launch OCR/peers/uploads, never contain document-derived text, stdout stays clean. No instruction note inside the Markdown (pollutes pipes/RAG).
+- Limit: an agent that discards stderr and never reads the guide is not reachable without integration changes.
