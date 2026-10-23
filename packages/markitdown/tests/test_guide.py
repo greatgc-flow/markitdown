@@ -169,3 +169,7 @@ def test_media_recipe_extracts_by_member_id(tmp_path):
         },
     )
     assert target.read_bytes() == image.read_bytes()
+
+
+def test_guide_has_no_persistent_ocr_cache() -> None:
+    assert ".ocr-cache" not in _packaged()

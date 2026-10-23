@@ -18,6 +18,7 @@ MAX_ZIP_ENTRIES = 10000
 MAX_ZIP_TOTAL_BYTES = 512 * 1024**2
 MAX_ZIP_READ_BYTES = 16 * 1024**2
 MAX_XML_BYTES = 2 * 1024**2
+MAX_MEDIA_READ_BYTES = 64 * 1024**2
 MAX_MEDIA_PROBE_BYTES = 64 * 1024
 MAX_MEDIA_REFERENCES = 10000
 _IMAGE_EXTENSIONS = frozenset(
@@ -511,6 +512,7 @@ class _Package:
         if len(self.members) != len(archive.infolist()):
             raise zipfile.BadZipFile()
         self.read_bytes = 0
+        self.media_read_bytes = 0
 
     def issue(self, code, detail):
         self.report["coverage"]["state"] = "partial"
@@ -534,13 +536,20 @@ class _Package:
         if xml and member.file_size > cap:
             self.limit()
             return None
-        remaining = MAX_ZIP_READ_BYTES - self.read_bytes
+        remaining = (
+            MAX_ZIP_READ_BYTES - self.read_bytes
+            if xml
+            else MAX_MEDIA_READ_BYTES - self.media_read_bytes
+        )
         size = min(member.file_size, cap)
         if size > remaining:
             self.limit()
             return None
         # A failing CRC can occur after decompression, so reserve before reading.
-        self.read_bytes += size
+        if xml:
+            self.read_bytes += size
+        else:
+            self.media_read_bytes += size
         try:
             with self.archive.open(member) as source:
                 # ZipExtFile otherwise decompresses at least 4 KiB per read.
@@ -573,6 +582,7 @@ def _office(report, stream):
         max_zip_read_bytes=MAX_ZIP_READ_BYTES,
         max_xml_bytes=MAX_XML_BYTES,
         max_media_probe_bytes=MAX_MEDIA_PROBE_BYTES,
+        max_media_read_bytes=MAX_MEDIA_READ_BYTES,
         max_media_references=MAX_MEDIA_REFERENCES,
     )
     report["summary"]["media_small"] = 0
@@ -707,11 +717,27 @@ def _package_media(report, package, fmt):
         ),
         key=lambda n: (slides.get(n, MAX_ZIP_ENTRIES + 1), n),
     )
+    text_namespaces = {
+        "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "http://schemas.openxmlformats.org/drawingml/2006/main",
+        "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+        "http://purl.oclc.org/ooxml/wordprocessingml/main",
+        "http://purl.oclc.org/ooxml/drawingml/main",
+        "http://purl.oclc.org/ooxml/spreadsheetml/main",
+        "http://www.hancom.co.kr/hwpml/2011/paragraph",
+    }
+    text_tags = {"{" + ns + "}t" for ns in text_namespaces}
     for part in parts:
         tree = package.xml(part)
         if tree is None:
             continue
         for element in tree.iter():
+            if element.tag in text_tags and (
+                fmt != "pptx" or part.startswith("ppt/slides/")
+            ):
+                report["summary"]["nonspace_chars"] += sum(
+                    not char.isspace() for text in element.itertext() for char in text
+                )
             for attr, rid in sorted(element.attrib.items()):
                 targets = []
                 if fmt == "hwpx" and attr.rsplit("}", 1)[-1] == "binaryItemIDRef":
@@ -728,6 +754,11 @@ def _package_media(report, package, fmt):
                     target = relationships.get(part, {}).get(rid)
                     if target in media:
                         targets = [target]
+                    elif attr.rsplit("}", 1)[-1] == "embed" and target is None:
+                        package.issue(
+                            "unresolved_embed",
+                            "Embedded image relationship is missing.",
+                        )
                 for target in targets:
                     media.add(target)
                     if len(occurrences) >= MAX_MEDIA_REFERENCES:
@@ -805,5 +836,16 @@ def _package_media(report, package, fmt):
         small = px is not None and (min(px) < 24 or px[0] * px[1] < 15000)
         if small:
             report["summary"]["media_small"] += 1
-        elif not decorative:
-            _candidate(report, name, "image", None, "low", ["embedded_image"])
+        if decorative:
+            _candidate(report, name, "image", None, "low", ["decor_media"])
+            report["candidates"][-1]["decor"] = True
+        elif not small:
+            scan_like = report["summary"]["nonspace_chars"] < 30
+            _candidate(
+                report,
+                name,
+                "image",
+                None,
+                "high" if scan_like else "low",
+                ["embedded_image", "scan_like"] if scan_like else ["embedded_image"],
+            )

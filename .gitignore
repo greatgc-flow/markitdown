@@ -169,4 +169,3 @@ src/.DS_Store
 
 # OCR triage work files (may contain document content)
 ocr-work/
-.ocr-cache/

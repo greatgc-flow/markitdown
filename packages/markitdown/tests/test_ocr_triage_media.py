@@ -54,7 +54,12 @@ def refs(*ids):
 
 def docx():
     return {
-        "word/document.xml": refs(0, 0, 1, 2, 3),
+        "word/document.xml": refs(0, 0, 1, 2, 3).replace(
+            "</root>",
+            '<w:t xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            + "text " * 30
+            + "</w:t></root>",
+        ),
         "word/_rels/document.xml.rels": rels(
             ("media/a.png", ""),
             ("media/icon.png", ""),
@@ -86,9 +91,11 @@ def test_docx_occurrences_thresholds_and_decor():
     assert [r["id"] for r in rows if r["decor"]] == ["word/media/header.png"]
     assert report["summary"]["media_small"] == 1
     assert report["summary"]["image_occurrences"] == 7
-    assert len(report["candidates"]) == 5
+    assert len(report["candidates"]) == 6
     assert all(
-        c["reasons"] == ["embedded_image"] and c["priority"] == "low"
+        c["reasons"]
+        == (["decor_media"] if c["id"].endswith("header.png") else ["embedded_image"])
+        and c["priority"] == "low"
         for c in report["candidates"]
     )
     assert next(r for r in rows if r["id"].endswith("emf"))["px"] is None
@@ -135,6 +142,7 @@ def test_pptx_presentation_order_and_layout_master():
         ({"slide": 2}, "ppt/slides/slide1.xml"),
     ]
     assert sum(r["decor"] for r in report["media"]) == 2
+    assert report["decision"] == "ocr_recommended"
 
 
 def test_xlsx_drawing_and_hwpx_builder():
@@ -177,7 +185,7 @@ def test_external_corrupt_ole_and_missing_pillow(monkeypatch):
     data = package(docx())
     monkeypatch.setitem(sys.modules, "PIL", None)
     report = core.triage(io.BytesIO(data))
-    assert len(report["candidates"]) == 6
+    assert len(report["candidates"]) == 7
     assert all(r["px"] is None for r in report["media"])
 
 
@@ -269,7 +277,7 @@ def test_corrupt_member_reads_still_spend_budget(monkeypatch):
                 data[offset + 16] ^= 1
             lengths = struct.unpack_from("<3H", data, offset + 28)
             offset += 46 + sum(lengths)
-    monkeypatch.setattr(core, "MAX_ZIP_READ_BYTES", 4096)
+    monkeypatch.setattr(core, "MAX_MEDIA_READ_BYTES", 4096, raising=False)
     read_sizes = []
     original = zipfile.ZipExtFile.read
 
@@ -280,7 +288,7 @@ def test_corrupt_member_reads_still_spend_budget(monkeypatch):
     monkeypatch.setattr(zipfile.ZipExtFile, "read", watched)
     report = core.triage(io.BytesIO(data))
     assert report["coverage"]["state"] == "partial"
-    assert sum(read_sizes) <= 4096
+    assert sum(read_sizes) <= 4096 + len(b"<root/>")
     assert len(report["candidates"]) == 10
     assert all(row["px"] is None for row in report["media"])
 
@@ -435,3 +443,86 @@ def test_non_image_media_is_excluded_but_unknown_image_type_is_kept():
     entries["BinData/sound.mp3"] = b"audio"
     report = core.triage(io.BytesIO(package(entries)))
     assert [r["id"] for r in report["media"]] == ["BinData/image1.bin"]
+
+
+@pytest.mark.parametrize("fmt", ["docx", "pptx", "hwpx", "xlsx"])
+@pytest.mark.parametrize("chars", [0, 29, 30, 60])
+def test_office_scan_like_text_threshold(fmt, chars):
+    root, marker, text_ns = {
+        "docx": (
+            "word/",
+            "document.xml",
+            "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        ),
+        "pptx": (
+            "ppt/",
+            "presentation.xml",
+            "http://schemas.openxmlformats.org/drawingml/2006/main",
+        ),
+        "hwpx": (
+            "Contents/",
+            "content.hpf",
+            "http://www.hancom.co.kr/hwpml/2011/paragraph",
+        ),
+        "xlsx": (
+            "xl/",
+            "workbook.xml",
+            "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+        ),
+    }[fmt]
+    part = {
+        "docx": "document.xml",
+        "pptx": "slides/slide1.xml",
+        "hwpx": "section0.xml",
+        "xlsx": "sharedStrings.xml",
+    }[fmt]
+    text = f'<root xmlns:t="{text_ns}"><t:t>' + " x \t\n" * chars + "</t:t></root>"
+    entries = {
+        root + marker: "<root/>",
+        root + part: text,
+        ("BinData/" if fmt == "hwpx" else root + "media/") + "scan.png": png(),
+    }
+    report = core.triage(io.BytesIO(package(entries)))
+    assert report["coverage"]["state"] == "complete"
+    assert report["summary"]["nonspace_chars"] == chars
+    assert report["candidates"][0]["priority"] == ("high" if chars < 30 else "low")
+    assert report["decision"] == ("ocr_recommended" if chars < 30 else "review")
+
+
+def test_many_images_have_separate_budget_and_keep_decor():
+    entries = {
+        "word/document.xml": "<root/>",
+        "word/header1.xml": refs(*range(300)),
+        "word/_rels/header1.xml.rels": rels(
+            *[(f"media/{i}.png", "") for i in range(300)]
+        ),
+    }
+    entries.update(
+        {f"word/media/{i}.png": png() + b"0" * (64 * 1024) for i in range(300)}
+    )
+    report = core.triage(io.BytesIO(package(entries)))
+    assert report["coverage"]["state"] == "complete"
+    assert not report["issues"]
+    assert len(report["candidates"]) == 300
+    assert all(row["decor"] for row in report["media"])
+    assert all(
+        c["priority"] == "low" and c["reasons"] == ["decor_media"] and c["decor"]
+        for c in report["candidates"]
+    )
+
+
+def test_media_budget_exhaustion_is_partial(monkeypatch):
+    monkeypatch.setattr(core, "MAX_MEDIA_READ_BYTES", 100, raising=False)
+    report = core.triage(
+        io.BytesIO(package({"word/document.xml": "<root/>", "word/media/a.png": png()}))
+    )
+    assert report["coverage"]["limits"]["max_media_read_bytes"] == 100
+    assert report["coverage"]["state"] == "partial"
+    assert any(i["code"] == "zip_limit" for i in report["issues"])
+
+
+def test_unresolved_embed_is_partial():
+    report = core.triage(io.BytesIO(package({"word/document.xml": refs(99)})))
+    assert report["coverage"]["state"] == "partial"
+    assert report["decision"] == "unknown"
+    assert any(i["code"] == "unresolved_embed" for i in report["issues"])
