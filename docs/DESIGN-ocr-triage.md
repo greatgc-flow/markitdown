@@ -144,3 +144,37 @@ never touches the network (socket patched), never converts. The doc recipe (rend
 Conversion-time warnings / `result.warnings` (core API unchanged; only CLI-level stderr hints); `--extract-images`; in-text markers;
 automatic merge and cache implementation; Office/HWP adapters (1b); hidden-OCR-layer detection; outlined-text detection;
 per-model OCR quality rankings; dollar-cost estimates; process isolation and timeouts.
+
+## Phase 1b (Office/HWPX media)
+- Package inspection only (zipfile + defusedxml), no converters/network/OCR; HWP5 OLE remains unsupported.
+- Add `file.format` docx|pptx|xlsx|hwpx. Existing PDF/raster reports and decision precedence stay unchanged.
+- Package reports append `media` after rasters and `summary.media_small`; page totals stay null/0.
+- Each media occurrence: ordered keys `{id,where,px,bytes,ext,decor,references}`; id is the exact ZIP member path,
+  where is `{slide:N}` only for PPTX direct slide references (presentation relationship order), otherwise null;
+  px is [w,h] or null, bytes is declared uncompressed size, ext is lowercase without dot.
+- references is `[{part,id}]` for this XML occurrence (relationship ID or HWPX binaryItemIDRef), empty for orphan media.
+  Duplicate uses retain separate rows/candidates with the same member id. Known image extensions get an orphan row;
+  image relationships/HWPX image refs also retain unknown encodings. Audio/video package members are not images.
+- Order: presentation slides first, then lexical part paths, XML document/attribute order, then lexical orphan paths.
+  ZIP insertion order and hash seed do not affect evidence. Known pixels are cached per member, never occurrences.
+- A member referenced ONLY by DOCX header/footer parts or PPTX slideMaster/slideLayout parts has decor:true;
+  rows remain visible but no candidates. Mixed references, or incomplete inspection, cannot prove decor status.
+- Non-decor media gets kind:image, priority:low, reason:embedded_image when min(w,h)>=24 AND w*h>=15000,
+  or dimensions are unknown; smaller occurrences increment media_small. Candidate page stays null.
+- EMF/WMF/SVG, missing Pillow, or failed bounded header probes retain null dimensions and candidates;
+  issue image_probe_failed. External image relationships produce external_media and partial coverage, never fetch.
+- Missing targets, invalid XML, duplicate member names, encrypted/unreadable members produce corrupt issues.
+- Monkeypatchable caps (reported in coverage.limits): MAX_ZIP_ENTRIES=10000, MAX_ZIP_TOTAL_BYTES=512 MiB,
+  MAX_ZIP_READ_BYTES=16 MiB, MAX_XML_BYTES=2 MiB, MAX_MEDIA_PROBE_BYTES=64 KiB, MAX_MEDIA_REFERENCES=10000.
+- Before ZipFile allocation, inspect EOCD and count central directory records/declared sizes; reject ZIP64 and
+  directory bytes > max_zip_entries*1024; require the directory adjacent to EOCD. XML reads are capped; oversized XML is skipped.
+  Media reads probe headers only, never decode pixels; reserve each read against the aggregate decompression budget.
+  Only stored/DEFLATE members are read (other codecs: unsupported_compression); prefix probes do not verify full CRCs.
+  Limits yield zip_limit and none/partial coverage; partial reports with candidates still yield review.
+- HWPX assumption verified against tests/_hwpx_builder.py: Contents/section*.xml contains hc:img binaryItemIDRef;
+  resolve Contents/content.hpf manifest IDs to BinData/*, falling back to exact BinData filename stems.
+  Other HWPX layouts are outside this phase; unresolved references are issues, never invented page numbers.
+- Tests: generated DOCX/XLSX ZIPs, python-pptx repeated pictures/reordered slides/master/layout refs, builder HWPX
+  plus BinData; icon/banner thresholds, repeats, mixed decor, external target, EMF/Pillow failure; corrupt ZIP/OLE;
+  monkeypatched caps, 100k empty entries, 5 MiB zeros, header-only probe, subprocess determinism, stream restore;
+  executable guide media extraction recipe and existing guide character ceilings; full package regression suite.

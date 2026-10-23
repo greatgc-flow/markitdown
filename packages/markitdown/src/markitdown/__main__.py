@@ -158,7 +158,7 @@ def main():
     parser.add_argument(
         "--ocr-report",
         action="store_true",
-        help="Do not convert: print a JSON report of which pages/images likely need OCR (PDF and raster images). Use -o to write it to a file.",
+        help="Do not convert: print a JSON report of which pages/images likely need OCR (PDF, raster, DOCX, PPTX, XLSX, HWPX). Use -o to write it to a file.",
     )
 
     parser.add_argument(

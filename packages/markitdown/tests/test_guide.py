@@ -84,6 +84,8 @@ def test_help_points_to_guide() -> None:
     assert (
         "--guide" in result.stdout.splitlines()[-1] or "--guide" in result.stdout[-400:]
     )
+    for fmt in ("DOCX", "PPTX", "XLSX", "HWPX"):
+        assert fmt in result.stdout
 
 
 def test_ocr_topic_is_operational() -> None:
@@ -142,3 +144,28 @@ def test_install_topic_documents_external_programs() -> None:
         "EXIFTOOL_PATH",
     ):
         assert needle in text, needle
+
+
+def test_media_recipe_extracts_by_member_id(tmp_path):
+    import zipfile
+    from PIL import Image
+    from markitdown.ocr_triage import triage
+
+    image = tmp_path / "source.png"
+    Image.new("RGB", (200, 100)).save(image)
+    source = tmp_path / "synthetic.docx"
+    with zipfile.ZipFile(source, "w") as z:
+        z.writestr("word/document.xml", "<root/>")
+        z.writestr("word/media/image1.png", image.read_bytes())
+    report = triage(source)
+    member_id = report["candidates"][0]["id"]
+    target = tmp_path / "extracted.png"
+    exec(
+        _recipe("media"),
+        {
+            "source_path": str(source),
+            "member_id": member_id,
+            "output_path": str(target),
+        },
+    )
+    assert target.read_bytes() == image.read_bytes()

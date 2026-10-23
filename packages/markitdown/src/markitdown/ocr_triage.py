@@ -1,14 +1,28 @@
 """Deterministic, local OCR triage observations; never performs OCR or conversion."""
 
 import hashlib
+import io
 import os
+import posixpath
 import re
+import struct
+import zipfile
+from urllib.parse import unquote, urlsplit
 
 MAX_BYTES = 256 * 1024**2
 MAX_PAGES = 1000
 MAX_FRAMES = 100
 MAX_IMAGES = 20
 _HASH_CHUNK = 1024**2
+MAX_ZIP_ENTRIES = 10000
+MAX_ZIP_TOTAL_BYTES = 512 * 1024**2
+MAX_ZIP_READ_BYTES = 16 * 1024**2
+MAX_XML_BYTES = 2 * 1024**2
+MAX_MEDIA_PROBE_BYTES = 64 * 1024
+MAX_MEDIA_REFERENCES = 10000
+_IMAGE_EXTENSIONS = frozenset(
+    "png jpg jpeg jpe jfif gif tif tiff bmp dib webp ico emf emz wmf wmz svg svgz eps wdp hdp pict pct".split()
+)
 
 
 def _report(samples):
@@ -129,6 +143,8 @@ def triage(source, *, samples=False):
                 fatal = not _pdf(report, _Borrowed(stream), samples)
             elif report["file"]["format"] == "image":
                 _image(report, _Borrowed(stream))
+            elif stream.read(4) == b"PK\x03\x04":
+                _office(report, stream)
             else:
                 code = "corrupt" if size == 0 else "unsupported_format"
                 _issue(
@@ -137,7 +153,7 @@ def triage(source, *, samples=False):
                     (
                         "Empty input."
                         if size == 0
-                        else "Supported formats: PDF and raster images."
+                        else "Supported formats: PDF, raster, DOCX, PPTX, XLSX, HWPX."
                     ),
                 )
                 fatal = True
@@ -428,3 +444,366 @@ def _image(report, stream):
             "image_probe_failed",
             "Image header or frames unavailable; install Pillow or check input.",
         )
+
+
+class _ZipLimit(Exception):
+    pass
+
+
+def _zip_preflight(stream):
+    """Count real directory records before ZipFile allocates a ZipInfo per entry."""
+    stream.seek(0, 2)
+    end = stream.tell()
+    stream.seek(max(0, end - 65557))
+    tail = stream.read(65557)
+    offset = tail.rfind(b"PK\x05\x06")
+    if offset < 0 or len(tail) - offset < 22:
+        raise zipfile.BadZipFile()
+    disk, start_disk, disk_count, count, length, start, comment = struct.unpack_from(
+        "<4H2IH", tail, offset + 4
+    )
+    if disk or start_disk or disk_count != count:
+        raise zipfile.BadZipFile()
+    # ZIP64 is outside these deliberately small inspection limits.
+    if count == 65535 or count > MAX_ZIP_ENTRIES or length > MAX_ZIP_ENTRIES * 1024:
+        raise _ZipLimit()
+    # ZipFile adjusts offsets for concatenated archives. Require one directory
+    # directly before EOCD so preflight and ZipFile inspect identical bytes.
+    if start + length != end - len(tail) + offset or offset + 22 + comment != len(tail):
+        raise zipfile.BadZipFile()
+    stream.seek(start)
+    records = total = 0
+    while stream.tell() < start + length:
+        header = stream.read(46)
+        if len(header) != 46 or header[:4] != b"PK\x01\x02":
+            raise zipfile.BadZipFile()
+        records += 1
+        total += struct.unpack_from("<I", header, 24)[0]
+        if records > MAX_ZIP_ENTRIES or total > MAX_ZIP_TOTAL_BYTES:
+            raise _ZipLimit()
+        name, extra, note = struct.unpack_from("<3H", header, 28)
+        stream.seek(name + extra + note, 1)
+    if records != count or stream.tell() != start + length:
+        raise zipfile.BadZipFile()
+    stream.seek(0)
+
+
+def _target(part, target):
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    path = unquote(parsed.path)
+    resolved = posixpath.normpath(
+        path.lstrip("/")
+        if path.startswith("/")
+        else posixpath.join(posixpath.dirname(part), path)
+    )
+    if resolved.startswith("../") or "\\" in resolved:
+        return None
+    return resolved
+
+
+class _Package:
+    def __init__(self, report, archive):
+        self.report = report
+        self.archive = archive
+        self.members = {item.filename: item for item in archive.infolist()}
+        if len(self.members) != len(archive.infolist()):
+            raise zipfile.BadZipFile()
+        self.read_bytes = 0
+
+    def issue(self, code, detail):
+        self.report["coverage"]["state"] = "partial"
+        # Stable bounded diagnostics, without member paths or exception text.
+        if not any(i["code"] == code for i in self.report["issues"]):
+            _issue(self.report, code, detail)
+
+    def limit(self):
+        self.issue(
+            "zip_limit", "Package inspection limit reached; evidence is incomplete."
+        )
+
+    def read(self, name, cap, *, xml=False):
+        member = self.members[name]
+        if member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            self.issue(
+                "unsupported_compression",
+                "Only stored/deflated members can be probed within the decompression budget.",
+            )
+            return None
+        if xml and member.file_size > cap:
+            self.limit()
+            return None
+        remaining = MAX_ZIP_READ_BYTES - self.read_bytes
+        size = min(member.file_size, cap)
+        if size > remaining:
+            self.limit()
+            return None
+        # A failing CRC can occur after decompression, so reserve before reading.
+        self.read_bytes += size
+        try:
+            with self.archive.open(member) as source:
+                # ZipExtFile otherwise decompresses at least 4 KiB per read.
+                # DEFLATE honors this instance-level minimum with max_length;
+                # other codecs can decompress without a bound and are refused.
+                source.MIN_READ_SIZE = 1
+                data = source.read(size)
+            return data
+        except Exception:
+            self.issue("corrupt", "Package member could not be read.")
+            return None
+
+    def xml(self, name):
+        from defusedxml.ElementTree import fromstring
+
+        data = self.read(name, MAX_XML_BYTES, xml=True)
+        if data is not None:
+            try:
+                return fromstring(data, forbid_dtd=True)
+            except Exception:
+                self.issue("corrupt", "Package XML could not be inspected.")
+        return None
+
+
+def _office(report, stream):
+    limits = report["coverage"]["limits"]
+    limits.update(
+        max_zip_entries=MAX_ZIP_ENTRIES,
+        max_zip_total_bytes=MAX_ZIP_TOTAL_BYTES,
+        max_zip_read_bytes=MAX_ZIP_READ_BYTES,
+        max_xml_bytes=MAX_XML_BYTES,
+        max_media_probe_bytes=MAX_MEDIA_PROBE_BYTES,
+        max_media_references=MAX_MEDIA_REFERENCES,
+    )
+    report["summary"]["media_small"] = 0
+    report["media"] = []
+    try:
+        _zip_preflight(stream)
+        with zipfile.ZipFile(stream) as archive:
+            package = _Package(report, archive)
+            names = package.members
+            fmt = next(
+                (
+                    fmt
+                    for fmt, marker in (
+                        ("docx", "word/document.xml"),
+                        ("pptx", "ppt/presentation.xml"),
+                        ("xlsx", "xl/workbook.xml"),
+                        ("hwpx", "Contents/content.hpf"),
+                    )
+                    if marker in names
+                ),
+                None,
+            )
+            if fmt is None:
+                _issue(
+                    report,
+                    "unsupported_format",
+                    "ZIP is not a supported Office/HWPX package.",
+                )
+                return
+            report["file"]["format"] = fmt
+            report["coverage"]["state"] = "complete"
+            _package_media(report, package, fmt)
+    except _ZipLimit:
+        _issue(report, "zip_limit", "Package directory exceeds inspection limits.")
+    except Exception:
+        report["coverage"]["state"] = "partial" if report["media"] else "none"
+        _issue(report, "corrupt", "Package could not be inspected.")
+
+
+def _package_media(report, package, fmt):
+    names = package.members
+    root = {"docx": "word/", "pptx": "ppt/", "xlsx": "xl/", "hwpx": "Contents/"}[fmt]
+    media_root = "BinData/" if fmt == "hwpx" else root + "media/"
+    media_members = {
+        name for name in names if name.startswith(media_root) and not name.endswith("/")
+    }
+    media = {
+        name
+        for name in media_members
+        if posixpath.splitext(name)[1][1:].lower() in _IMAGE_EXTENSIONS
+    }
+    relationships = {}
+    for name in sorted(names):
+        if (
+            not name.startswith(root)
+            or not name.endswith(".rels")
+            or "/_rels/" not in name
+        ):
+            continue
+        folder, leaf = name.rsplit("/_rels/", 1)
+        part = folder + "/" + leaf[:-5]
+        tree = package.xml(name)
+        mapping = {}
+        if tree is not None:
+            for rel in tree:
+                rid = rel.get("Id")
+                target = rel.get("Target", "")
+                external = (
+                    rel.get("TargetMode") == "External" or _target(part, target) is None
+                )
+                image = rel.get("Type", "").endswith("/image")
+                if external:
+                    if image:
+                        package.issue(
+                            "external_media",
+                            "External image relationship was not fetched.",
+                        )
+                    continue
+                resolved = _target(part, target)
+                mapping[rid] = resolved
+                if image:
+                    if resolved in names:
+                        media.add(resolved)
+                    else:
+                        package.issue(
+                            "corrupt", "Image relationship member is missing."
+                        )
+        relationships[part] = mapping
+    slides = {}
+    if fmt == "pptx":
+        tree = package.xml("ppt/presentation.xml")
+        if tree is not None:
+            mapping = relationships.get("ppt/presentation.xml", {})
+            for element in tree.iter():
+                if element.tag.rsplit("}", 1)[-1] == "sldId":
+                    rid = next(
+                        (v for k, v in element.attrib.items() if k.endswith("}id")),
+                        None,
+                    )
+                    target = mapping.get(rid)
+                    if target in names:
+                        slides[target] = len(slides) + 1
+                    else:
+                        package.issue(
+                            "corrupt", "Presentation slide relationship is missing."
+                        )
+    occurrences = []
+    hwpx_ids = {}
+    if fmt == "hwpx":
+        # OWPML sections use binaryItemIDRef; fixture uses the BinData stem.
+        for name in sorted(media_members):
+            hwpx_ids.setdefault(
+                posixpath.splitext(posixpath.basename(name))[0], []
+            ).append(name)
+        tree = package.xml("Contents/content.hpf")
+        if tree is not None:
+            for item in tree.iter():
+                if item.get("id") and item.get("href"):
+                    href = item.get("href")
+                    target = (
+                        href if href in names else _target("Contents/content.hpf", href)
+                    )
+                    if target in media_members:
+                        hwpx_ids[item.get("id")] = [target]
+    parts = sorted(
+        (
+            n
+            for n in names
+            if n.startswith(root)
+            and n.endswith(".xml")
+            and (fmt != "hwpx" or re.fullmatch(r"Contents/section\d+\.xml", n))
+        ),
+        key=lambda n: (slides.get(n, MAX_ZIP_ENTRIES + 1), n),
+    )
+    for part in parts:
+        tree = package.xml(part)
+        if tree is None:
+            continue
+        for element in tree.iter():
+            for attr, rid in sorted(element.attrib.items()):
+                targets = []
+                if fmt == "hwpx" and attr.rsplit("}", 1)[-1] == "binaryItemIDRef":
+                    targets = hwpx_ids.get(rid, [])
+                    if not targets:
+                        package.issue(
+                            "corrupt", "HWPX image reference member is missing."
+                        )
+                elif attr.startswith(
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+                ) or attr.startswith(
+                    "{http://purl.oclc.org/ooxml/officeDocument/relationships}"
+                ):
+                    target = relationships.get(part, {}).get(rid)
+                    if target in media:
+                        targets = [target]
+                for target in targets:
+                    media.add(target)
+                    if len(occurrences) >= MAX_MEDIA_REFERENCES:
+                        package.limit()
+                        break
+                    occurrences.append((target, part, rid))
+    referenced = {name for name, _, _ in occurrences}
+    # Retain orphaned media too: unavailable references cannot justify decor skipping.
+    for name in sorted(media - referenced):
+        if len(occurrences) >= MAX_MEDIA_REFERENCES:
+            package.limit()
+            break
+        occurrences.append((name, None, None))
+
+    def decor_part(part):
+        return bool(
+            part
+            and (
+                (
+                    fmt == "docx"
+                    and re.fullmatch(r"word/(header|footer)[^/]*\.xml", part)
+                )
+                or (
+                    fmt == "pptx"
+                    and part.startswith(("ppt/slideMasters/", "ppt/slideLayouts/"))
+                )
+            )
+        )
+
+    decor = {name: True for name in referenced}
+    for name, part, _ in occurrences:
+        decor[name] = decor.get(name, True) and decor_part(part)
+    sizes = {}
+    for name, part, rid in occurrences:
+        ext = posixpath.splitext(name)[1][1:].lower()
+        if name not in sizes:
+            sizes[name] = None
+            if ext not in ("emf", "wmf", "svg"):
+                data = package.read(name, MAX_MEDIA_PROBE_BYTES)
+                if data is not None:
+                    try:
+                        from PIL import Image
+
+                        with Image.open(io.BytesIO(data)) as image:
+                            sizes[name] = list(image.size)
+                    except Exception:
+                        pass
+            if sizes[name] is None:
+                # Probe failure does not make known references incomplete.
+                if not any(i["code"] == "image_probe_failed" for i in report["issues"]):
+                    _issue(
+                        report,
+                        "image_probe_failed",
+                        "Embedded image dimensions unavailable; candidate retained.",
+                    )
+    for name, part, rid in occurrences:
+        ext = posixpath.splitext(name)[1][1:].lower()
+        px = sizes[name]
+        # Incomplete reference inspection cannot prove exclusive decor use.
+        decorative = (
+            decor.get(name, False) and report["coverage"]["state"] == "complete"
+        )
+        report["media"].append(
+            {
+                "id": name,
+                "where": {"slide": slides[part]} if part in slides else None,
+                "px": px,
+                "bytes": names[name].file_size,
+                "ext": ext,
+                "decor": bool(decorative),
+                "references": [{"part": part, "id": rid}] if part else [],
+            }
+        )
+        report["summary"]["image_occurrences"] += 1
+        small = px is not None and (min(px) < 24 or px[0] * px[1] < 15000)
+        if small:
+            report["summary"]["media_small"] += 1
+        elif not decorative:
+            _candidate(report, name, "image", None, "low", ["embedded_image"])
