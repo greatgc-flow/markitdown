@@ -180,3 +180,16 @@ per-model OCR quality rankings; dollar-cost estimates; process isolation and tim
   plus BinData; icon/banner thresholds, repeats, mixed decor, external target, EMF/Pillow failure; corrupt ZIP/OLE;
   monkeypatched caps, 100k empty entries, 5 MiB zeros, header-only probe, subprocess determinism, stream restore;
   executable guide media extraction recipe and existing guide character ceilings; full package regression suite.
+
+## Evidence mode (proposed; unavailable until validated)
+Reviewed by cc and cx (unanimous; ag not yet consulted). Design only, nothing implemented.
+- Current output is a draft transcription. "Evidence-grade" may describe only an owner-approved workflow result after all gates below pass; never certification.
+- Preconditions: complete source/page inventory, preserved original, durable provenance, approved privacy route, validated Korean-document accuracy, resolved discrepancies, recorded human sign-off. Otherwise stay draft.
+- Overrides S0-S4 sampling, candidate-only coverage and ledger deletion: every page/frame gets two independent reads (including existing text layers, blank pages, stamps, annotations, handwriting), without seeing each other's transcription. Use distinct engines/model families; agreement does not establish correctness.
+- Diff complete transcriptions; digits, dates, IDs and names must match exactly. Preserve raw strings, no silent normalization or inferred repairs. Log and resolve every discrepancy against the source; keep both readings.
+- A named human reviews every page against the final transcription and signs the exact output hash. Unresolved or illegible content blocks evidence-grade status and is represented explicitly, never guessed.
+- A versioned JSON sidecar is kept permanently with the retained output (never deleted by cleanup, also for sensitive documents; restricted, encrypted): original SHA-256; page/frame ids and render hashes; tool/engine versions; peer/model/prompt versions; UTC timestamps; both reading hashes; per-id status; disagreement/resolution log; final output hash; reviewer identity, sign-off time, signed hash. A hash alone is not chain of custody: keep transfer events and prior versions in protected storage. Timestamps live here, outside the deterministic triage report.
+- Sensitive documents: offer a local-only OCR route (Tesseract/PaddleOCR, network disabled, same gates; Korean accuracy must be measured, it may be worse). External processing needs explicit owner approval of provider and scope; redact locally before approved egress and flag redacted coverage.
+- Output labels: `DRAFT - not verified` until both reads and reconciliation pass, then `dual-read, human-unsigned` until sign-off. markitdown never asserts certification.
+- Validation: owner-supplied Korean samples with human-adjudicated ground truth; report CER and exact-match rates for numerics, dates, IDs, names; include omissions, hallucinations, hard scans, stamps, handwriting; owner-approved thresholds, held-out samples, revalidate on any model/prompt change. Private data stays out of git; commit only synthetic fixtures and approved aggregates.
+- Non-goal: markitdown never certifies evidence or guarantees admissibility; that is for a human/lawyer.
