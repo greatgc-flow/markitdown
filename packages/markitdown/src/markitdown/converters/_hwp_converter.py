@@ -39,7 +39,7 @@ class HwpConverter(DocumentConverter):
         except ImportError as exc:
             raise MissingDependencyException(
                 "HwpConverter requires hwp-hwpx-parser. "
-                "Install it with pip install 'markitdown[hwp]'."
+                "Install it with pip install 'markitdown-gc[hwp]'."
             ) from exc
 
         from .._media import check_media_options

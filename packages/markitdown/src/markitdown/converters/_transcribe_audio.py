@@ -34,8 +34,8 @@ def transcribe_audio(
         raise MissingDependencyException(
             "Speech transcription requires installing MarkItDown with the "
             "[audio-transcription] optional dependencies. E.g., "
-            "`pip install 'markitdown[audio-transcription]'` or "
-            "`pip install 'markitdown[all]'`"
+            "`pip install 'markitdown-gc[audio-transcription]'` or "
+            "`pip install 'markitdown-gc[all]'`"
         ) from _dependency_exc_info[
             1
         ].with_traceback(  # type: ignore[union-attr]

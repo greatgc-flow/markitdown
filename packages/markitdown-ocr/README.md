@@ -1,5 +1,7 @@
 # MarkItDown OCR Plugin
 
+> This sibling package is not published for the `markitdown-gc` fork yet. Fork installation instructions are withheld; the remaining examples describe upstream usage. Do not install the upstream package into a `markitdown-gc` environment.
+
 LLM Vision plugin for MarkItDown that extracts text from images embedded in PDF, DOCX, PPTX, and XLSX files.
 
 Uses the same `llm_client` / `llm_model` pattern that MarkItDown already supports for image descriptions — no new ML libraries or binary dependencies required.

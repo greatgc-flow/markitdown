@@ -4,7 +4,7 @@ MarkItDown: convert files to Markdown (stdout). Inspect output before trusting i
   markitdown FILE --ocr-report -o r.json   inspect pages/images for OCR
   markitdown FILE --extract-media assets -o out.md   link original image bytes
   markitdown --guide TOPIC        topics: formats ocr errors install | all
-  pip install "markitdown[all]"   (or [pdf] [docx] [hwp] ...)
+  pip install "markitdown-gc[all]"   (or [pdf] [docx] [hwp] ...)
 Next steps:
   Empty/scanned output or image placeholders? Run markitdown FILE --ocr-report.
   Report exit 0 = report produced: check decision, coverage, candidates and issues.
@@ -80,7 +80,7 @@ S4 assemble: append `## OCR p3 (peer, model, date)` after the converted text; le
 - Batch: loop in your own code, catch the three exceptions, log failures, continue.
 
 ## install
-- `pip install "markitdown[all]"` or per format: `[pdf] [docx] [pptx] [xlsx] [xls] [outlook] [hwp] [audio-transcription] [youtube-transcription]`.
+- `pip install "markitdown-gc[all]"` or per format: `[pdf] [docx] [pptx] [xlsx] [xls] [outlook] [hwp] [audio-transcription] [youtube-transcription]`.
 - Python 3.10-3.15. On 3.15 magika (content sniffing) and youtube transcripts are unavailable: always pass the extension or MIME type for stdin/bytes.
 - Windows: set `PYTHONUTF8=1`; a short temp path avoids pip git-clone path-length errors.
 - `-p/--use-plugins` enables plugins; `-d -e ENDPOINT` uses Azure Document Intelligence.

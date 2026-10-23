@@ -72,10 +72,10 @@ def test_missing_backend(monkeypatch, extension):
     monkeypatch.setitem(sys.modules, "hwp_hwpx_parser", None)
     info = StreamInfo(extension=extension)
     stream = io.BytesIO(b"unread")
-    with pytest.raises(MissingDependencyException, match=r"markitdown\[hwp\]"):
+    with pytest.raises(MissingDependencyException, match=r"markitdown-gc\[hwp\]"):
         HwpConverter().convert(stream, info)
     assert stream.tell() == 0
-    with pytest.raises(FileConversionException, match=r"markitdown\[hwp\]") as exc:
+    with pytest.raises(FileConversionException, match=r"markitdown-gc\[hwp\]") as exc:
         _hwp_only().convert_stream(stream, stream_info=info)
     assert any(
         isinstance(attempt.exc_info[1], MissingDependencyException)
@@ -94,7 +94,7 @@ MarkItDown()
 try:
     HwpConverter().convert(io.BytesIO(), StreamInfo(extension='.hwp'))
 except MissingDependencyException as exc:
-    assert 'markitdown[hwp]' in str(exc)
+    assert 'markitdown-gc[hwp]' in str(exc)
 else:
     raise AssertionError('Missing dependency was not reported')
 """

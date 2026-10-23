@@ -357,7 +357,7 @@ def _pdf(report, stream, samples):
         _issue(
             report,
             "missing_dependency",
-            'Install PDF support: pip install "markitdown[pdf]".',
+            'Install PDF support: pip install "markitdown-gc[pdf]".',
         )
         return False
     try:
@@ -875,7 +875,7 @@ def _hwp(report, stream):
         _issue(
             report,
             "missing_dependency",
-            "Install markitdown[hwp] for HWP5 media inspection.",
+            "Install markitdown-gc[hwp] for HWP5 media inspection.",
         )
         return
     except Exception:

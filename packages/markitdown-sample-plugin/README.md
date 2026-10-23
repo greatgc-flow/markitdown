@@ -1,5 +1,7 @@
 # MarkItDown Sample Plugin
 
+> This sibling package is not published for the `markitdown-gc` fork yet. Fork installation instructions are withheld; the remaining examples describe upstream usage. Do not install the upstream package into a `markitdown-gc` environment.
+
 [![PyPI](https://img.shields.io/pypi/v/markitdown-sample-plugin.svg)](https://pypi.org/project/markitdown-sample-plugin/)
 ![PyPI - Downloads](https://img.shields.io/pypi/dd/markitdown-sample-plugin)
 [![Built by AutoGen Team](https://img.shields.io/badge/Built%20by-AutoGen%20Team-blue)](https://github.com/microsoft/autogen)
