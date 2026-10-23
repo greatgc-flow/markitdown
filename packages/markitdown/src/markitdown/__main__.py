@@ -11,6 +11,11 @@ from textwrap import dedent
 from importlib.metadata import entry_points
 from .__about__ import __version__
 from ._markitdown import MarkItDown, StreamInfo, DocumentConverterResult
+from ._exceptions import (
+    FileConversionException,
+    MissingDependencyException,
+    UnsupportedFormatException,
+)
 
 
 def main():
@@ -44,6 +49,7 @@ def main():
 
                 markitdown example.pdf > example.md
             """).strip(),
+        epilog="AI agents / quick start: markitdown --guide   (OCR triage: markitdown --guide ocr)",
     )
 
     parser.add_argument(
@@ -142,15 +148,46 @@ def main():
 
     parser.add_argument(
         "--guide",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="TOPIC",
+        help="Print the usage guide and exit: quick card, or one topic (formats, ocr, errors, install) or 'all'.",
+    )
+
+    parser.add_argument(
+        "--ocr-report",
         action="store_true",
-        help="Print a compact usage guide for AI agents and exit.",
+        help="Do not convert: print a JSON report of which pages/images likely need OCR (PDF and raster images). Use -o to write it to a file.",
+    )
+
+    parser.add_argument(
+        "--ocr-report-samples",
+        action="store_true",
+        help="With --ocr-report, include up to 120 characters of text per page (may contain sensitive text).",
     )
 
     parser.add_argument("filename", nargs="?")
     args = parser.parse_args()
 
-    if args.guide:
-        _print_guide()
+    if args.guide is not None:
+        _check_exclusive(parser, args, "--guide", allowed=("guide",))
+        _print_guide(parser, args.guide)
+        return
+
+    if args.ocr_report_samples and not args.ocr_report:
+        parser.error("--ocr-report-samples requires --ocr-report")
+    if args.ocr_report:
+        for flag, value in (
+            ("-d/--use-docintel", args.use_docintel),
+            ("--use-cu", args.use_cu),
+            ("-p/--use-plugins", args.use_plugins),
+            ("--keep-data-uris", args.keep_data_uris),
+            ("-c/--charset", args.charset),
+        ):
+            if value:
+                parser.error(f"{flag} cannot be used with --ocr-report")
+        _run_ocr_report(args)
         return
 
     # Parse the extension hint
@@ -256,28 +293,119 @@ def main():
     else:
         markitdown = MarkItDown(enable_plugins=args.use_plugins)
 
-    if args.filename is None:
-        # Windows pipe-backed stdin can report seekable() even though it cannot rewind.
-        result = markitdown.convert_stream(
-            io.BytesIO(sys.stdin.buffer.read()),
-            stream_info=stream_info,
-            keep_data_uris=args.keep_data_uris,
-        )
-    else:
-        result = markitdown.convert(
-            args.filename, stream_info=stream_info, keep_data_uris=args.keep_data_uris
+    try:
+        if args.filename is None:
+            # Windows pipe-backed stdin can report seekable() even though it cannot rewind.
+            result = markitdown.convert_stream(
+                io.BytesIO(sys.stdin.buffer.read()),
+                stream_info=stream_info,
+                keep_data_uris=args.keep_data_uris,
+            )
+        else:
+            result = markitdown.convert(
+                args.filename,
+                stream_info=stream_info,
+                keep_data_uris=args.keep_data_uris,
+            )
+    except (
+        UnsupportedFormatException,
+        MissingDependencyException,
+        FileConversionException,
+    ):
+        sys.stderr.write("hint: markitdown --guide errors\n")
+        raise
+
+    if not result.markdown.strip():
+        sys.stderr.write(
+            f"no text extracted; try: markitdown {args.filename or 'FILE'} --ocr-report\n"
         )
 
     _handle_output(args, result)
 
 
-def _print_guide():
-    """Write the packaged GUIDE.md to stdout as UTF-8."""
+GUIDE_TOPICS = ("formats", "ocr", "errors", "install")
+
+
+def _check_exclusive(parser, args, flag, allowed):
+    """Reject conversion/report arguments combined with `flag`."""
+    used = [
+        name
+        for name, value in (
+            ("filename", args.filename),
+            ("-o", args.output),
+            ("-x", args.extension),
+            ("-m", args.mime_type),
+            ("-c", args.charset),
+            ("-d", args.use_docintel),
+            ("--use-cu", args.use_cu),
+            ("-p", args.use_plugins),
+            ("--list-plugins", args.list_plugins),
+            ("--keep-data-uris", args.keep_data_uris),
+            ("--ocr-report", args.ocr_report),
+            ("--ocr-report-samples", args.ocr_report_samples),
+        )
+        if value
+    ]
+    if used:
+        parser.error(f"{flag} cannot be combined with: {', '.join(used)}")
+
+
+def _guide_text(topic: str) -> str:
+    """Return the quick card (topic ''), one `## topic` section, or everything ('all')."""
     from importlib import resources
 
-    guide = resources.files(__package__).joinpath("GUIDE.md").read_bytes()
+    text = (
+        resources.files(__package__).joinpath("GUIDE.md").read_text(encoding="utf-8")
+    ).replace("\r\n", "\n")
+    if topic == "all":
+        return text
+    parts = text.split("\n## ")
+    if topic == "":
+        return parts[0].rstrip("\n") + "\n"
+    for part in parts[1:]:
+        if part.split("\n", 1)[0].strip() == topic:
+            return "## " + part.rstrip("\n") + "\n"
+    raise KeyError(topic)
+
+
+def _print_guide(parser, topic: str):
+    """Write the requested guide part to stdout as UTF-8."""
+    try:
+        guide = _guide_text(topic)
+    except KeyError:
+        parser.error(
+            f"unknown guide topic {topic!r}; topics: {' '.join(GUIDE_TOPICS)} | all"
+        )
     sys.stdout.flush()
-    sys.stdout.buffer.write(guide)
+    sys.stdout.buffer.write(guide.encode("utf-8"))
+    sys.stdout.buffer.flush()
+
+
+def _run_ocr_report(args):
+    """Print (or write with -o) the OCR triage report; exit 0 when a report was produced."""
+    import json
+    from .ocr_triage import triage
+
+    if args.filename is None:
+        source = io.BytesIO(sys.stdin.buffer.read())
+    else:
+        source = args.filename
+    report = triage(source, samples=args.ocr_report_samples)
+    text = json.dumps(report, ensure_ascii=False, separators=(",", ":")) + "\n"
+    if args.output:
+        with open(args.output, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        summary = report["summary"]
+        sys.stdout.buffer.write(
+            (
+                f"ocr-report: decision={report['decision']} "
+                f"high={summary['candidates_high']} low={summary['candidates_low']} "
+                f"coverage={report['coverage']['state']} issues={len(report['issues'])} "
+                f"-> {args.output}\n"
+            ).encode("utf-8")
+        )
+    else:
+        sys.stdout.buffer.write(text.encode("utf-8"))
     sys.stdout.buffer.flush()
 
 

@@ -74,7 +74,13 @@ pip install -e 'packages/markitdown[all]'
 
 ### Command-Line
 
-AI agents: run `markitdown --guide` for a compact usage guide (formats, silent-empty-output checks, OCR triage, errors).
+```bash
+markitdown input.pdf -o output.md           # convert
+markitdown input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
+markitdown --guide                          # 20-line quick card; topics: formats ocr errors install
+```
+
+Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown --guide`.
 
 ```bash
 markitdown path-to-file.pdf > document.md
