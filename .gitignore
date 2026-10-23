@@ -166,3 +166,7 @@ cython_debug/
 src/.DS_Store
 .DS_Store
 .cursorrules
+
+# OCR triage work files (may contain document content)
+ocr-work/
+.ocr-cache/
