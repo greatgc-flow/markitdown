@@ -1,7 +1,10 @@
-# MarkItDown
+# MarkItDown GC
 
-[![PyPI](https://img.shields.io/pypi/v/markitdown.svg)](https://pypi.org/project/markitdown/)
-![PyPI - Downloads](https://img.shields.io/pypi/dd/markitdown)
+> Unofficial fork of [Microsoft MarkItDown](https://github.com/microsoft/markitdown), maintained at [greatgc-flow/markitdown](https://github.com/greatgc-flow/markitdown). This fork is not affiliated with or endorsed by Microsoft.
+> Install the `markitdown-gc` distribution. Do not install it together with upstream `markitdown` in the same environment: both provide the `markitdown` import and CLI, and the same plugin group. Use a fresh virtual environment.
+
+[![PyPI](https://img.shields.io/pypi/v/markitdown-gc.svg)](https://pypi.org/project/markitdown-gc/)
+![PyPI - Downloads](https://img.shields.io/pypi/dd/markitdown-gc)
 
 > [!IMPORTANT]
 > MarkItDown performs I/O with the privileges of the current process. Like open() or requests.get(), it will access resources that the process itself can access. Sanitize your inputs in untrusted environments, and call the narrowest `convert_*` function needed for your use case (e.g., `convert_stream()`, or `convert_local()`). See the [Security Considerations](#security-considerations) section of the documentation for more information.
@@ -62,10 +65,10 @@ conda activate markitdown
 
 ## Installation
 
-To install MarkItDown, use pip: `pip install 'markitdown[all]'`. Alternatively, you can install it from the source:
+To install MarkItDown, use pip: `pip install 'markitdown-gc[all]'`. Alternatively, you can install it from the source:
 
 ```bash
-git clone git@github.com:microsoft/markitdown.git
+git clone https://github.com/greatgc-flow/markitdown.git
 cd markitdown
 pip install -e 'packages/markitdown[all]'
 ```
@@ -102,7 +105,7 @@ cat path-to-file.pdf | markitdown
 MarkItDown has optional dependencies for activating various file formats. The `[all]` option includes these, including HWP/HWPX. You can also install them individually for more control. For example:
 
 ```bash
-pip install 'markitdown[pdf, docx, pptx]'
+pip install 'markitdown-gc[pdf, docx, pptx]'
 ```
 
 will install only the dependencies for PDF, DOCX, and PPTX files.
@@ -124,13 +127,16 @@ At the moment, the following optional dependencies are available:
 
 ### HWP/HWPX
 
-HWP5 and HWPX support is included in `[all]`, or can be installed separately with `pip install 'markitdown[hwp]'`.
+HWP5 and HWPX support is included in `[all]`, or can be installed separately with `pip install 'markitdown-gc[hwp]'`.
 
 The backend, `hwp-hwpx-parser`, is pure Python and supports all platforms without a native HWP dependency.
 
 Tables become Markdown pipe rows in document order. Merged cells are flattened: cell text is preserved, but spans and layout are lost. Images are omitted as `[IMAGE]` placeholders. Footnote and endnote bodies are appended as Markdown definitions. Existing global Markdown whitespace normalization still applies.
 
-HWP versions before 5.0, encrypted/distribution documents, exact page layout, headers/footers, image extraction, OCR, and writing HWP are not supported. No table normalization, replacement parser, or document size/time limits are added. A valid HWPX ZIP with invalid document XML may fall through to the existing ZIP converter when a ZIP format guess is available.
+Use `--extract-media assets -o out.md` to save original DOCX/PPTX/XLSX/HWP5/HWPX image payloads and link them from Markdown. It is exclusive with `--keep-data-uris`; unsupported media is marked explicitly. Default Markdown stays unchanged.
+Use `--ocr-report [-o report.json]` for local image/page triage (including HWP5 media). JSON goes to stdout or only to the output file; the file summary goes to stderr. Exit codes: 0 report produced, 1 execution/output failure, 2 invalid arguments. Check decision and coverage even after exit 0. Read `markitdown --guide ocr` for the approval and verification workflow.
+
+HWP versions before 5.0, encrypted/distribution documents, exact page layout, headers/footers, OCR, and writing HWP are not supported. No table normalization, replacement parser, or document size/time limits are added. A valid HWPX ZIP with invalid document XML may fall through to the existing ZIP converter when a ZIP format guess is available.
 
 ### Plugins
 
@@ -152,12 +158,9 @@ To find available plugins, search GitHub for the hashtag `#markitdown-plugin`. T
 
 The `markitdown-ocr` plugin adds OCR support to PDF, DOCX, PPTX, and XLSX converters, extracting text from embedded images using LLM Vision — the same `llm_client` / `llm_model` pattern that MarkItDown already uses for image descriptions. No new ML libraries or binary dependencies required.
 
-**Installation:**
-
-```bash
-pip install markitdown-ocr
-pip install openai  # or any OpenAI-compatible client
-```
+The OCR sibling package is not published for the `markitdown-gc` fork yet;
+fork installation instructions are withheld. The following examples describe
+upstream plugin usage.
 
 **Usage:**
 
@@ -184,7 +187,7 @@ See [`packages/markitdown-ocr/README.md`](packages/markitdown-ocr/README.md) for
 
 [Azure Content Understanding](https://learn.microsoft.com/azure/ai-services/content-understanding/) provides higher-quality conversion with structured field extraction (YAML front matter), multi-modal support (documents, images, audio, video), and configurable analyzers.
 
-Install: `pip install 'markitdown[az-content-understanding]'`
+Install: `pip install 'markitdown-gc[az-content-understanding]'`
 
 #### When to use Content Understanding
 
@@ -362,7 +365,7 @@ We cannot accept additional applications, services, or servers. This includes:
 - Web frontends and browser-based user interfaces
 - Desktop and mobile applications (PyQt, PySide, Tkinter, Electron, Flutter, and similar)
 
-Projects like these are genuinely useful, and we would rather see them thrive than be turned away. If you are interested in providing a web service, API, or graphical application for MarkItDown, please maintain it as a separate package or project that depends on [`markitdown` from PyPI](https://pypi.org/project/markitdown/).
+Projects like these are genuinely useful, and we would rather see them thrive than be turned away. If you are interested in providing a web service, API, or graphical application for MarkItDown, please maintain it as a separate package or project that depends on [`markitdown-gc` from PyPI](https://pypi.org/project/markitdown-gc/).
 
 ### Extending MarkItDown Without Changing This Repository
 
@@ -383,8 +386,8 @@ You can help by looking at issues or helping review PRs. We have also marked som
 
 |            | All                                                          | Especially Needs Help from Community                                                                                                      |
 | ---------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **Issues** | [All Issues](https://github.com/microsoft/markitdown/issues) | [Issues open for contribution](https://github.com/microsoft/markitdown/issues?q=is%3Aissue+is%3Aopen+label%3A%22open+for+contribution%22) |
-| **PRs**    | [All PRs](https://github.com/microsoft/markitdown/pulls)     | [PRs open for reviewing](https://github.com/microsoft/markitdown/pulls?q=is%3Apr+is%3Aopen+label%3A%22open+for+reviewing%22)              |
+| **Issues** | [All Issues](https://github.com/greatgc-flow/markitdown/issues) | [Issues open for contribution](https://github.com/greatgc-flow/markitdown/issues?q=is%3Aissue+is%3Aopen+label%3A%22open+for+contribution%22) |
+| **PRs**    | [All PRs](https://github.com/greatgc-flow/markitdown/pulls)     | [PRs open for reviewing](https://github.com/greatgc-flow/markitdown/pulls?q=is%3Apr+is%3Aopen+label%3A%22open+for+reviewing%22)              |
 
 </div>
 

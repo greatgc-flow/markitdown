@@ -10,6 +10,8 @@ class DocumentConverterResult:
         markdown: str,
         *,
         title: Optional[str] = None,
+        image_content_omitted: bool = False,
+        unsupported_media: bool = False,
     ):
         """
         Initialize the DocumentConverterResult.
@@ -23,6 +25,8 @@ class DocumentConverterResult:
         """
         self.markdown = markdown
         self.title = title
+        self.image_content_omitted = image_content_omitted
+        self.unsupported_media = unsupported_media
 
     @property
     def text_content(self) -> str:

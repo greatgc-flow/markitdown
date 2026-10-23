@@ -3,12 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "markitdown"
+name = "markitdown-gc"
 dynamic = ["version"]
 description = 'Utility tool for converting various files to Markdown'
 readme = "README.md"
 requires-python = ">=3.10,<3.16"
 license = "MIT"
+license-files = ["LICENSE", "ThirdPartyNotices.md"]
 keywords = []
 authors = [
   { name = "Adam Fourney", email = "adamfo@microsoft.com" },
@@ -70,9 +71,9 @@ az-doc-intel = ["azure-ai-documentintelligence", "azure-identity"]
 az-content-understanding = ["azure-ai-contentunderstanding>=1.2.0b1", "azure-identity"]
 
 [project.urls]
-Documentation = "https://github.com/microsoft/markitdown#readme"
-Issues = "https://github.com/microsoft/markitdown/issues"
-Source = "https://github.com/microsoft/markitdown"
+Documentation = "https://github.com/greatgc-flow/markitdown#readme"
+Issues = "https://github.com/greatgc-flow/markitdown/issues"
+Source = "https://github.com/greatgc-flow/markitdown"
 
 [tool.hatch.version]
 path = "src/markitdown/__about__.py"
@@ -120,3 +121,6 @@ exclude_lines = [
 
 [tool.hatch.build.targets.sdist]
 only-include = ["src/markitdown"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/markitdown"]

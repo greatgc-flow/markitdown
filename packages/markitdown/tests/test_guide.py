@@ -173,3 +173,18 @@ def test_media_recipe_extracts_by_member_id(tmp_path):
 
 def test_guide_has_no_persistent_ocr_cache() -> None:
     assert ".ocr-cache" not in _packaged()
+
+
+def test_next_steps_and_updated_media_contract():
+    card = _run("--guide").stdout
+    for text in (
+        "Next steps",
+        "--extract-media",
+        "decision",
+        "coverage",
+        "verification",
+    ):
+        assert text in card
+    all_text = _packaged()
+    assert "stderr" in all_text
+    assert "HWP5" in all_text

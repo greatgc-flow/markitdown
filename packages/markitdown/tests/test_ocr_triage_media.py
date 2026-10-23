@@ -526,3 +526,47 @@ def test_unresolved_embed_is_partial():
     assert report["coverage"]["state"] == "partial"
     assert report["decision"] == "unknown"
     assert any(i["code"] == "unresolved_embed" for i in report["issues"])
+
+
+def test_hwpx_wmf_is_unsupported_issue():
+    report = core.triage(
+        io.BytesIO(
+            package(
+                {
+                    "Contents/content.hpf": "<root/>",
+                    "BinData/skipped.wmf": b"synthetic WMF",
+                }
+            )
+        )
+    )
+    assert report["media"][0]["id"] == "BinData/skipped.wmf"
+    assert any(i["code"] == "unsupported_media" for i in report["issues"])
+
+
+def test_hwp5_parser_images_stable_and_not_decor(monkeypatch):
+    from types import SimpleNamespace
+    import hwp_hwpx_parser as parser
+
+    reader = SimpleNamespace(
+        get_images=lambda: [
+            SimpleNamespace(filename="BIN0001.png", data=png(), format="png", index=0),
+            SimpleNamespace(filename="BIN0002.wmf", data=b"wmf", format="wmf", index=1),
+        ],
+        close=lambda: None,
+    )
+    monkeypatch.setattr(parser, "read", lambda path: reader)
+    data = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"synthetic HWP5"
+    stream = io.BytesIO(data)
+    stream.seek(3)
+    report = core.triage(stream)
+    assert stream.tell() == 3
+    assert report["file"]["format"] == "hwp"
+    assert [r["id"] for r in report["media"]] == [
+        "BinData/BIN0001.png",
+        "BinData/BIN0002.wmf",
+    ]
+    assert all(r["decor"] is False for r in report["media"])
+    assert all(c["decor"] is False for c in report["candidates"])
+    assert report["summary"]["image_occurrences"] == 2
+    assert any(i["code"] == "unsupported_media" for i in report["issues"])
+    assert core.triage(io.BytesIO(data)) == report

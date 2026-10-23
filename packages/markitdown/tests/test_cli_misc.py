@@ -41,7 +41,7 @@ def test_invalid_flag() -> None:
     assert (
         "unrecognized arguments" in result.stderr
     ), "Expected 'unrecognized arguments' to appear in STDERR"
-    assert "SYNTAX" in result.stderr, "Expected 'SYNTAX' to appear in STDERR"
+    assert "usage: markitdown [OPTIONS] [FILE]" in result.stderr
 
 
 def test_windows_pipe_input_is_buffered_before_conversion(monkeypatch, capsys) -> None:
@@ -209,8 +209,8 @@ class TestCLIArgs:
         with pytest.raises(SystemExit) as exc:
             main()
 
-        assert exc.value.code == 1
-        assert "Unknown file type: nonsense" in capsys.readouterr().out
+        assert exc.value.code == 2
+        assert "Unknown file type: nonsense" in capsys.readouterr().err
         client_cls.assert_not_called()
 
     def test_use_cu_wires_kwargs_to_markitdown(self, capsys):
@@ -356,7 +356,7 @@ class TestEndpointEnvVars:
         with pytest.raises(SystemExit):
             main()
 
-        assert "MARKITDOWN_CU_ENDPOINT" in capsys.readouterr().out
+        assert "MARKITDOWN_CU_ENDPOINT" in capsys.readouterr().err
 
 
 if __name__ == "__main__":

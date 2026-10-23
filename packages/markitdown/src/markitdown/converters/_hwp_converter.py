@@ -39,9 +39,12 @@ class HwpConverter(DocumentConverter):
         except ImportError as exc:
             raise MissingDependencyException(
                 "HwpConverter requires hwp-hwpx-parser. "
-                "Install it with pip install 'markitdown[hwp]'."
+                "Install it with pip install 'markitdown-gc[hwp]'."
             ) from exc
 
+        from .._media import check_media_options
+
+        check_media_options(kwargs)
         data = file_stream.read()
         suffix = (stream_info.extension or "").lower()
         if suffix not in ACCEPTED_FILE_EXTENSIONS:
@@ -66,7 +69,11 @@ class HwpConverter(DocumentConverter):
                 result = reader.extract_text_with_notes(
                     parser.ExtractOptions(
                         table_style=parser.TableStyle.MARKDOWN,
-                        image_marker=parser.ImageMarkerStyle.SIMPLE,
+                        image_marker=(
+                            parser.ImageMarkerStyle.WITH_NAME
+                            if kwargs.get("extract_media")
+                            else parser.ImageMarkerStyle.SIMPLE
+                        ),
                     )
                 )
                 markdown = result.text
@@ -74,7 +81,24 @@ class HwpConverter(DocumentConverter):
                     for note in notes:
                         body = note.text.replace("\n", "\n    ")
                         markdown += f"\n\n[^{prefix}{note.number}]: {body}"
-                return DocumentConverterResult(markdown=markdown)
+                from .._hwp_media import has_hwp_images
+
+                has_images = has_hwp_images(data, suffix)
+                unsupported = False
+                if kwargs.get("extract_media"):
+                    from .._hwp_media import hwp_images, extract_hwp_markdown
+
+                    rows = hwp_images(data, suffix, reader)
+                    markdown = extract_hwp_markdown(markdown, rows, **kwargs)
+                    unsupported = any(not row[3] for row in rows)
+                return DocumentConverterResult(
+                    markdown=markdown,
+                    image_content_omitted=(
+                        has_images and not kwargs.get("extract_media")
+                    )
+                    or unsupported,
+                    unsupported_media=unsupported,
+                )
             finally:
                 reader.close()
         finally:

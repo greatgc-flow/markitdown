@@ -82,6 +82,7 @@ class ImageConverter(DocumentConverter):
 
         return DocumentConverterResult(
             markdown=md_content,
+            image_content_omitted=True,
         )
 
     def _get_llm_description(

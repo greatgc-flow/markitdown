@@ -1,32 +1,36 @@
-MarkItDown: convert files to Markdown (stdout). Inspect the output before trusting it.
+MarkItDown: convert files to Markdown (stdout). Inspect output before trusting it.
   markitdown FILE                 convert        markitdown FILE -o out.md   write file
   cat FILE | markitdown -x .pdf   stdin (-x = extension hint)
-  markitdown FILE --ocr-report -o r.json   triage: which pages/images need OCR
+  markitdown FILE --ocr-report -o r.json   inspect pages/images for OCR
+  markitdown FILE --extract-media assets -o out.md   link original image bytes
   markitdown --guide TOPIC        topics: formats ocr errors install | all
-  pip install "markitdown[all]"   (or [pdf] [docx] [hwp] ...)
-Traps:
-  1 Scanned PDF/image => EMPTY output, no error => run --ocr-report.
-  2 Missing extra => MissingDependencyException => --guide install.
-  3 HWP/HWPX images are only [IMAGE]; DOCX/PPTX images are truncated refs.
-  4 markitdown never OCRs; peers do after approval (--guide ocr).
-  5 --ocr-report supports PDF, raster, DOCX, PPTX, XLSX, HWPX; exit 0 = report produced
-    (check decision: unknown/partial coverage needs attention).
+  pip install "markitdown-gc[all]"   (or [pdf] [docx] [hwp] ...)
+Next steps:
+  Empty/scanned output or image placeholders? Run markitdown FILE --ocr-report.
+  Report exit 0 = report produced: check decision, coverage, candidates and issues.
+  JSON goes to stdout or ONLY to -o; the -o summary goes to stderr.
+  OCR needs approval and verification; markitdown never launches OCR (--guide ocr).
+  Image bytes are omitted by default. --extract-media writes originals unchanged;
+  --keep-data-uris embeds bytes where supported (large); choose one.
+  Triage supports PDF, raster, DOCX, PPTX, XLSX, HWP5 and HWPX; unsupported media is an issue.
+  Missing dependency or conversion error? Read --guide install or --guide errors.
 
 ## formats
 What you actually get (text only, no layout fidelity):
 - PDF: text per page; tables best-effort; scanned pages give NO text (see ocr).
 - DOCX/PPTX: headings, lists, tables, alt text; images are `![alt](file)` or truncated `data:` refs (`--keep-data-uris` keeps them, huge). PPTX has `<!-- Slide number: N -->`.
-- XLSX/XLS/CSV: one table per sheet.
+- XLSX/XLS/CSV: one table per sheet. XLSX image extraction is opt-in.
 - HWP/HWPX (`[hwp]`, also in `[all]`): text + pipe tables (merged cells flattened), images `[IMAGE]`, footnotes appended; HWP < 5.0 and encrypted files unsupported.
 - HTML, EPUB, RSS, IPYNB, JSON/XML/text, ZIP (recursive), MSG: text/structure.
 - Image: EXIF only if `exiftool` is installed, caption only with an LLM client; otherwise empty.
 - Audio: metadata + transcript (`[audio-transcription]`, ffmpeg, network).
+`--extract-media DIR` (Python: `extract_media=DIR`) saves original DOCX/PPTX/XLSX/HWP5/HWPX images as `<sha256[:12]>.<ext>`, deduplicates bytes, and links relative to the output file (cwd for stdout; Python: `media_base_dir`). Unsafe members/collisions fail. Unsupported images get explicit omission markers. HWP5 parser payloads may be decompressed from OLE streams; no image re-encoding. Default Markdown is unchanged.
 `convert()` also fetches http(s)://, file://, data: URIs: never pass untrusted input as the source.
 
 ## ocr
 markitdown never OCRs. It reports where OCR is needed; peers (cc/cx via peerhub) transcribe. Pages/images leave the machine: sensitive
 documents (medical, legal, personal) and jobs over 20 pages/images need the owner's approval; one approval = at most 10 asks x 3 pages.
-Supports PDF, raster, DOCX, PPTX, XLSX, HWPX. S0 triage: `markitdown FILE --ocr-report -o r.json` (prints one line). Read only the verdict part:
+Supports PDF, raster, DOCX, PPTX, XLSX, HWP5, HWPX. S0 triage: `markitdown FILE --ocr-report -o r.json` (summary on stderr). Read only the verdict part:
 ```python
 # recipe:read
 import json
@@ -69,12 +73,14 @@ S4 assemble: append `## OCR p3 (peer, model, date)` after the converted text; le
 - UnsupportedFormatException: no converter accepted the input (add `-x EXT` / `-m MIME`; on Python 3.15 hint-free stdin is unsupported).
 - MissingDependencyException: install the extra named in the message (see install).
 - FileConversionException: a converter accepted the file but failed (corrupt/encrypted); the message lists attempts.
-- Exit codes: 0 ok; 1 conversion/usage error or uncaught exception; 2 bad arguments or unknown guide topic. `--ocr-report` exits 0 whenever a report was produced.
-- The CLI adds `hint: markitdown --guide errors` on stderr for these exceptions and `no text extracted; try: markitdown FILE --ocr-report` when the output is empty.
+- Exit codes: 0 success/report produced; 1 execution/output failure; 2 invalid arguments or unknown guide topic. Reports may have unknown/partial coverage.
+- `--ocr-report` accepts only FILE, -o and --ocr-report-samples; conversion options are rejected (exit 2). JSON stays on stdout or only in -o; its summary uses stderr.
+- The CLI adds `hint: markitdown --guide errors` on stderr for these exceptions and `hint: no text extracted; inspect the source and run markitdown FILE --ocr-report` when the output is empty.
+- Image omissions/truncation add a static stderr hint to run `markitdown FILE --ocr-report` and read `--guide ocr`. Hints never contain document text.
 - Batch: loop in your own code, catch the three exceptions, log failures, continue.
 
 ## install
-- `pip install "markitdown[all]"` or per format: `[pdf] [docx] [pptx] [xlsx] [xls] [outlook] [hwp] [audio-transcription] [youtube-transcription]`.
+- `pip install "markitdown-gc[all]"` or per format: `[pdf] [docx] [pptx] [xlsx] [xls] [outlook] [hwp] [audio-transcription] [youtube-transcription]`.
 - Python 3.10-3.15. On 3.15 magika (content sniffing) and youtube transcripts are unavailable: always pass the extension or MIME type for stdin/bytes.
 - Windows: set `PYTHONUTF8=1`; a short temp path avoids pip git-clone path-length errors.
 - `-p/--use-plugins` enables plugins; `-d -e ENDPOINT` uses Azure Document Intelligence.

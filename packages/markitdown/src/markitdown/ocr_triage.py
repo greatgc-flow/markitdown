@@ -73,6 +73,8 @@ def _candidate(report, identity, kind, page, priority, reasons):
 
 
 def _format(header):
+    if header.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return "hwp"
     if header.startswith(b"%PDF-"):
         return "pdf"
     if header.startswith(
@@ -144,6 +146,8 @@ def triage(source, *, samples=False):
                 fatal = not _pdf(report, _Borrowed(stream), samples)
             elif report["file"]["format"] == "image":
                 _image(report, _Borrowed(stream))
+            elif report["file"]["format"] == "hwp":
+                _hwp(report, stream)
             elif stream.read(4) == b"PK\x03\x04":
                 _office(report, stream)
             else:
@@ -353,7 +357,7 @@ def _pdf(report, stream, samples):
         _issue(
             report,
             "missing_dependency",
-            'Install PDF support: pip install "markitdown[pdf]".',
+            'Install PDF support: pip install "markitdown-gc[pdf]".',
         )
         return False
     try:
@@ -796,6 +800,12 @@ def _package_media(report, package, fmt):
         ext = posixpath.splitext(name)[1][1:].lower()
         if name not in sizes:
             sizes[name] = None
+            if fmt == "hwpx" and ext in ("wmf", "emf", "wmz", "emz"):
+                _issue(
+                    report,
+                    "unsupported_media",
+                    "Unsupported embedded image encoding; candidate retained.",
+                )
             if ext not in ("emf", "wmf", "svg"):
                 data = package.read(name, MAX_MEDIA_PROBE_BYTES)
                 if data is not None:
@@ -849,3 +859,85 @@ def _package_media(report, package, fmt):
                 "high" if scan_like else "low",
                 ["embedded_image", "scan_like"] if scan_like else ["embedded_image"],
             )
+
+
+def _hwp(report, stream):
+    from ._hwp_media import hwp_reader, hwp_images
+
+    report["summary"]["media_small"] = 0
+    report["media"] = []
+    stream.seek(0)
+    data = stream.read(MAX_BYTES + 1)
+    try:
+        with hwp_reader(data, ".hwp") as reader:
+            rows = hwp_images(data, ".hwp", reader)
+    except ImportError:
+        _issue(
+            report,
+            "missing_dependency",
+            "Install markitdown-gc[hwp] for HWP5 media inspection.",
+        )
+        return
+    except Exception:
+        _issue(report, "corrupt", "HWP5 media could not be inspected.")
+        return
+    stored = {}
+    try:
+        import olefile
+
+        with olefile.OleFileIO(io.BytesIO(data)) as ole:
+            for path in ole.listdir():
+                if len(path) == 2 and path[0] == "BinData":
+                    payload = ole.openstream(path).read()
+                    stored["/".join(path)] = (
+                        len(payload),
+                        hashlib.sha256(payload).hexdigest(),
+                    )
+    except (OSError, ValueError):
+        pass
+    report["coverage"]["state"] = "complete"
+    spent = 0
+    for name, payload, ext, supported in rows[:MAX_MEDIA_REFERENCES]:
+        spent += len(payload)
+        px = None
+        if spent <= MAX_MEDIA_READ_BYTES and supported:
+            try:
+                from PIL import Image
+
+                with Image.open(io.BytesIO(payload[:MAX_MEDIA_PROBE_BYTES])) as image:
+                    px = list(image.size)
+            except Exception:
+                pass
+        if not supported or ext in ("wmf", "emf", "wmz", "emz"):
+            _issue(
+                report,
+                "unsupported_media",
+                "Unsupported HWP5 image encoding; candidate retained.",
+            )
+        report["media"].append(
+            {
+                "id": name,
+                "where": None,
+                "px": px,
+                "bytes": len(payload),
+                "ext": ext,
+                "decor": False,
+                "references": [],
+                "payload_sha256": hashlib.sha256(payload).hexdigest(),
+                "payload_kind": (
+                    "parser_image_payload" if supported else "stored_ole_stream"
+                ),
+                "stored_bytes": stored.get(name, (None, None))[0],
+                "stored_sha256": stored.get(name, (None, None))[1],
+            }
+        )
+        report["summary"]["image_occurrences"] += 1
+        small = px is not None and (min(px) < 24 or px[0] * px[1] < 15000)
+        if small:
+            report["summary"]["media_small"] += 1
+        else:
+            _candidate(report, name, "image", None, "low", ["embedded_image"])
+            report["candidates"][-1]["decor"] = False
+    if len(rows) > MAX_MEDIA_REFERENCES or spent > MAX_MEDIA_READ_BYTES:
+        report["coverage"]["state"] = "partial"
+        _issue(report, "zip_limit", "HWP5 media observation limit reached.")

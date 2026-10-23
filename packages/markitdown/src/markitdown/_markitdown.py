@@ -608,6 +608,9 @@ class MarkItDown:
     def _convert(
         self, *, file_stream: BinaryIO, stream_info_guesses: List[StreamInfo], **kwargs
     ) -> DocumentConverterResult:
+        from ._media import check_media_options
+
+        check_media_options(kwargs)
         res: Union[None, DocumentConverterResult] = None
 
         # Keep track of which converters throw exceptions
@@ -680,6 +683,8 @@ class MarkItDown:
                                 converter=converter, exc_info=sys.exc_info()
                             )
                         )
+                        if kwargs.get("extract_media"):
+                            raise FileConversionException(attempts=failed_attempts)
                     finally:
                         file_stream.seek(cur_pos)
 
