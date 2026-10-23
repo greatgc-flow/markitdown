@@ -78,9 +78,19 @@ class PptxConverter(DocumentConverter):
                 _dependency_exc_info[2]
             )
 
+        from .._media import check_media_options, validate_members
+
+        check_media_options(kwargs)
+        if kwargs.get("extract_media"):
+            import zipfile
+
+            with zipfile.ZipFile(file_stream) as archive:
+                validate_members(archive)
+            file_stream.seek(0)
         # Perform the conversion
         presentation = pptx.Presentation(file_stream)
         md_content = ""
+        has_images = False
         slide_num = 0
         for slide in presentation.slides:
             slide_num += 1
@@ -90,9 +100,10 @@ class PptxConverter(DocumentConverter):
             title = slide.shapes.title
 
             def get_shape_content(shape, **kwargs):
-                nonlocal md_content
+                nonlocal md_content, has_images
                 # Pictures
                 if self._is_picture(shape):
+                    has_images = True
                     md_content += self._convert_picture_to_markdown(shape, **kwargs)
 
                 # Tables
@@ -146,7 +157,11 @@ class PptxConverter(DocumentConverter):
                     md_content += "\n\n### Notes:\n" + notes_text
                     md_content = md_content.strip()
 
-        return DocumentConverterResult(markdown=md_content.strip())
+        return DocumentConverterResult(
+            markdown=md_content.strip(),
+            image_content_omitted=has_images
+            and not (kwargs.get("keep_data_uris") or kwargs.get("extract_media")),
+        )
 
     def _image_to_html(
         self,
@@ -225,6 +240,14 @@ class PptxConverter(DocumentConverter):
         alt_text = re.sub(r"[\r\n\[\]]", " ", alt_text)
         alt_text = re.sub(r"\s+", " ", alt_text).strip()
 
+        if kwargs.get("extract_media"):
+            if image_blob is None:
+                return "\n![Image omitted]\n"
+            from .._media import save_media
+
+            extension = os.path.splitext(image_filename or "image.bin")[1]
+            path = save_media(image_blob, extension, **kwargs)
+            return f"\n![{alt_text}]({path})\n"
         if kwargs.get("keep_data_uris", False) and image_blob is not None:
             content_type = image_content_type or "image/png"
             b64_string = base64.b64encode(image_blob).decode("utf-8")

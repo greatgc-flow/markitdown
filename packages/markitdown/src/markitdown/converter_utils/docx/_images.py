@@ -52,6 +52,7 @@ class _DocxImages:
         render: Callable[..., Optional[str]],
         options: dict[str, Any],
     ):
+        self.omitted = False
         self._render = render
         self._options = options
         self._attribute = "data-markitdown-image-" + uuid4().hex
@@ -66,7 +67,14 @@ class _DocxImages:
                 else None
             ),
         )
-        with image.open() as image_stream:
+        try:
+            image_stream = image.open()
+        except (KeyError, InvalidFileReferenceError):
+            if not self._options.get("extract_media"):
+                raise
+            self.omitted = True
+            return []
+        with image_stream as image_stream:
             try:
                 fragment = self._render(image_stream, stream_info, **self._options)
             except InvalidFileReferenceError as exc:

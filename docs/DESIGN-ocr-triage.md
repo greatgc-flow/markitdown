@@ -195,7 +195,7 @@ Reviewed by cc and cx (unanimous; ag not yet consulted). Design only, nothing im
 - Non-goal: markitdown never certifies evidence or guarantees admissibility; that is for a human/lawyer.
 
 ## Round 13: images in output, HWP backends, CLI, discoverability (cc+cx agreed; ag not consulted)
-Design only. Implementation needs the owner's go; ag retro-check after its quota returns.
+Implementation authorized; Round 13 supersedes earlier CLI output/hint and HWP5 deferral contracts above. ag retro-check after its quota returns.
 
 Images in Markdown
 - Default stays placeholders (no image bytes in stdout). Inline original base64 is opt-in only (`--keep-data-uris`, where the format supports it). Reason: token cost. Sum of 4*ceil(n/3) over raw media; the owner's real 8.7 MB HWPX holds 15.4 MB raw media = 20.5 M base64 chars, millions of tokens, and a text model does not decode Markdown base64 as vision input anyway.
@@ -216,3 +216,7 @@ Discoverability
 - Quick card (<=2000 chars, ~1100 proposed) gets a "Next steps" block: empty/scanned output or image placeholders -> `--ocr-report`; exit 0 means check decision/coverage; OCR needs approval and verification; image bytes omitted by default; HWP5 triage unsupported (until added).
 - Converter emits STATIC stderr hints driven by converter observations (not by matching document text): "no text extracted; inspect the source and run markitdown FILE --ocr-report" is replaced by a form without the filename; "image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr."; existing "markitdown --guide errors". Deduplicated per conversion, never launch OCR/peers/uploads, never contain document-derived text, stdout stays clean. No instruction note inside the Markdown (pollutes pipes/RAG).
 - Limit: an agent that discards stderr and never reads the guide is not reachable without integration changes.
+
+Round 13 implementation notes:
+- HWP5 triage uses a temporary `.hwp` because the 1.0.x parser is path-only; cleanup is guaranteed. This supersedes the initial no-spooling constraint for this backend. Report rows distinguish parser image payload hashes from stored OLE stream hashes. The parser eagerly decompresses BinData before observation limits can apply; these limits do not bound parser memory.
+- HWP5 media uses conservative low-priority embedded-image candidates without page or text-layer inference; `decor` is always false.

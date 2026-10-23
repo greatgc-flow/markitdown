@@ -539,6 +539,7 @@ class PdfConverter(DocumentConverter):
         # Read file stream into BytesIO for compatibility with pdfplumber
         pdf_bytes = io.BytesIO(file_stream.read())
 
+        has_images = False
         try:
             # Single pass: check every page for form-style content.
             # Pages with tables/forms get rich extraction; plain-text
@@ -551,6 +552,7 @@ class PdfConverter(DocumentConverter):
 
             with pdfplumber.open(pdf_bytes) as pdf:
                 for page_idx, page in enumerate(pdf.pages):
+                    has_images = has_images or bool(page.images)
                     page_content = _extract_form_content_from_words(page)
 
                     if page_content is not None:
@@ -586,4 +588,6 @@ class PdfConverter(DocumentConverter):
         # Post-process to merge MasterFormat-style partial numbering with following text
         markdown = _merge_partial_numbering_lines(markdown)
 
-        return DocumentConverterResult(markdown=markdown)
+        return DocumentConverterResult(
+            markdown=markdown, image_content_omitted=has_images
+        )

@@ -7,7 +7,6 @@ import sys
 import codecs
 import io
 from typing import Any, Dict
-from textwrap import dedent
 from importlib.metadata import entry_points
 from .__about__ import __version__
 from ._markitdown import MarkItDown, StreamInfo, DocumentConverterResult
@@ -23,32 +22,7 @@ def main():
         description="Convert various file formats to markdown.",
         prog="markitdown",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        usage=dedent("""
-            SYNTAX:
-
-                markitdown <OPTIONAL: FILENAME>
-                If FILENAME is empty, markitdown reads from stdin.
-
-            EXAMPLE:
-
-                markitdown example.pdf
-
-                OR
-
-                cat example.pdf | markitdown
-
-                OR
-
-                markitdown < example.pdf
-
-                OR to save to a file use
-
-                markitdown example.pdf -o example.md
-
-                OR
-
-                markitdown example.pdf > example.md
-            """).strip(),
+        usage="%(prog)s [OPTIONS] [FILE]",
         epilog="AI agents / quick start: markitdown --guide   (OCR triage: markitdown --guide ocr)",
     )
 
@@ -104,14 +78,14 @@ def main():
         "-e",
         "--endpoint",
         type=str,
-        default=os.environ.get("MARKITDOWN_DOCINTEL_ENDPOINT") or None,
+        default=None,
         help="Document Intelligence Endpoint. Required if using Document Intelligence. Defaults to the MARKITDOWN_DOCINTEL_ENDPOINT environment variable.",
     )
 
     parser.add_argument(
         "--cu-endpoint",
         type=str,
-        default=os.environ.get("MARKITDOWN_CU_ENDPOINT") or None,
+        default=None,
         help="Content Understanding Endpoint. Required if using --use-cu. Defaults to the MARKITDOWN_CU_ENDPOINT environment variable.",
     )
 
@@ -147,6 +121,12 @@ def main():
     )
 
     parser.add_argument(
+        "--extract-media",
+        metavar="DIR",
+        help="Extract original images to DIR and link them from Markdown.",
+    )
+
+    parser.add_argument(
         "--guide",
         nargs="?",
         const="",
@@ -158,7 +138,7 @@ def main():
     parser.add_argument(
         "--ocr-report",
         action="store_true",
-        help="Do not convert: print a JSON report of which pages/images likely need OCR (PDF, raster, DOCX, PPTX, XLSX, HWPX). Use -o to write it to a file.",
+        help="Do not convert: print a JSON report of which pages/images likely need OCR (PDF, raster, DOCX, PPTX, XLSX, HWP5, HWPX). Use -o to write it to a file.",
     )
 
     parser.add_argument(
@@ -178,17 +158,38 @@ def main():
     if args.ocr_report_samples and not args.ocr_report:
         parser.error("--ocr-report-samples requires --ocr-report")
     if args.ocr_report:
-        for flag, value in (
-            ("-d/--use-docintel", args.use_docintel),
-            ("--use-cu", args.use_cu),
-            ("-p/--use-plugins", args.use_plugins),
-            ("--keep-data-uris", args.keep_data_uris),
-            ("-c/--charset", args.charset),
-        ):
-            if value:
-                parser.error(f"{flag} cannot be used with --ocr-report")
-        _run_ocr_report(args)
+        defaults = {"filename", "output", "ocr_report", "ocr_report_samples", "guide"}
+        for name, value in vars(args).items():
+            if name not in defaults and value is not None and value is not False:
+                parser.error(
+                    f"--{name.replace('_', '-')} cannot be used with --ocr-report"
+                )
+        try:
+            _run_ocr_report(args)
+        except OSError:
+            sys.stderr.write("OCR report output failed.\n")
+            sys.exit(1)
         return
+
+    if args.extract_media and args.keep_data_uris:
+        parser.error("--extract-media and --keep-data-uris are mutually exclusive")
+
+    args.endpoint = (
+        args.endpoint or os.environ.get("MARKITDOWN_DOCINTEL_ENDPOINT") or None
+    )
+    args.cu_endpoint = (
+        args.cu_endpoint or os.environ.get("MARKITDOWN_CU_ENDPOINT") or None
+    )
+    media_options = {}
+    if args.extract_media:
+        media_options = {
+            "extract_media": args.extract_media,
+            "media_base_dir": (
+                os.path.dirname(os.path.abspath(args.output))
+                if args.output
+                else os.getcwd()
+            ),
+        }
 
     # Parse the extension hint
     extension_hint = args.extension
@@ -206,7 +207,7 @@ def main():
         mime_type_hint = mime_type_hint.strip()
         if len(mime_type_hint) > 0:
             if mime_type_hint.count("/") != 1:
-                _exit_with_error(f"Invalid MIME type: {mime_type_hint}")
+                parser.error(f"Invalid MIME type: {mime_type_hint}")
         else:
             mime_type_hint = None
 
@@ -218,7 +219,7 @@ def main():
             try:
                 charset_hint = codecs.lookup(charset_hint).name
             except LookupError:
-                _exit_with_error(f"Invalid charset: {charset_hint}")
+                parser.error(f"Invalid charset: {charset_hint}")
         else:
             charset_hint = None
 
@@ -251,19 +252,19 @@ def main():
 
     if args.use_docintel:
         if args.endpoint is None:
-            _exit_with_error(
+            parser.error(
                 "Document Intelligence Endpoint is required when using Document Intelligence. "
                 "Pass -e/--endpoint or set MARKITDOWN_DOCINTEL_ENDPOINT."
             )
         elif args.filename is None:
-            _exit_with_error("Filename is required when using Document Intelligence.")
+            parser.error("Filename is required when using Document Intelligence.")
 
         markitdown = MarkItDown(
             enable_plugins=args.use_plugins, docintel_endpoint=args.endpoint
         )
     elif args.use_cu:
         if args.cu_endpoint is None:
-            _exit_with_error(
+            parser.error(
                 "Content Understanding Endpoint (--cu-endpoint) is required when using --use-cu. "
                 "Pass --cu-endpoint or set MARKITDOWN_CU_ENDPOINT."
             )
@@ -286,7 +287,7 @@ def main():
                 try:
                     cu_types.append(ContentUnderstandingFileType(name))
                 except ValueError:
-                    _exit_with_error(f"Unknown file type: {name}")
+                    parser.error(f"Unknown file type: {name}")
             cu_kwargs["cu_file_types"] = cu_types
 
         markitdown = MarkItDown(enable_plugins=args.use_plugins, **cu_kwargs)
@@ -300,12 +301,14 @@ def main():
                 io.BytesIO(sys.stdin.buffer.read()),
                 stream_info=stream_info,
                 keep_data_uris=args.keep_data_uris,
+                **media_options,
             )
         else:
             result = markitdown.convert(
                 args.filename,
                 stream_info=stream_info,
                 keep_data_uris=args.keep_data_uris,
+                **media_options,
             )
     except (
         UnsupportedFormatException,
@@ -317,9 +320,15 @@ def main():
 
     if not result.markdown.strip():
         sys.stderr.write(
-            f"no text extracted; try: markitdown {args.filename or 'FILE'} --ocr-report\n"
+            "hint: no text extracted; inspect the source and run markitdown FILE --ocr-report\n"
         )
 
+    if result.image_content_omitted is True:
+        sys.stderr.write(
+            "hint: image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr.\n"
+        )
+    if result.unsupported_media is True:
+        sys.stderr.write("warning: unsupported media omitted; inspect the source.\n")
     _handle_output(args, result)
 
 
@@ -341,6 +350,11 @@ def _check_exclusive(parser, args, flag, allowed):
             ("-p", args.use_plugins),
             ("--list-plugins", args.list_plugins),
             ("--keep-data-uris", args.keep_data_uris),
+            ("--extract-media", args.extract_media),
+            ("--endpoint", args.endpoint),
+            ("--cu-endpoint", args.cu_endpoint),
+            ("--cu-analyzer", args.cu_analyzer),
+            ("--cu-file-types", args.cu_file_types),
             ("--ocr-report", args.ocr_report),
             ("--ocr-report-samples", args.ocr_report_samples),
         )
@@ -396,7 +410,7 @@ def _run_ocr_report(args):
         with open(args.output, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         summary = report["summary"]
-        sys.stdout.buffer.write(
+        sys.stderr.buffer.write(
             (
                 f"ocr-report: decision={report['decision']} "
                 f"high={summary['candidates_high']} low={summary['candidates_low']} "
@@ -419,11 +433,6 @@ def _handle_output(args, result: DocumentConverterResult):
         # cases where sys.stdout.encoding is None (e.g. redirected streams).
         encoding = sys.stdout.encoding or "utf-8"
         print(result.markdown.encode(encoding, errors="replace").decode(encoding))
-
-
-def _exit_with_error(message: str):
-    print(message)
-    sys.exit(1)
 
 
 if __name__ == "__main__":

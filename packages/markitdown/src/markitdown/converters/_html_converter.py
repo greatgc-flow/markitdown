@@ -87,6 +87,8 @@ class HtmlConverter(DocumentConverter):
 
         return DocumentConverterResult(
             markdown=webpage_text,
+            image_content_omitted=bool(soup.find("img"))
+            and not (kwargs.get("keep_data_uris") or kwargs.get("extract_media")),
             title=None if soup.title is None else soup.title.string,
         )
 

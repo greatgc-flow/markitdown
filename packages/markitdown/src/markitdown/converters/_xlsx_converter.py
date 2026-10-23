@@ -140,10 +140,26 @@ class XlsxConverter(DocumentConverter):
                 _xlsx_dependency_exc_info[2]
             )
 
+        from .._media import check_media_options, image_html, validate_members
+
+        check_media_options(kwargs)
+        if kwargs.get("extract_media"):
+            with zipfile.ZipFile(file_stream) as archive:
+                validate_members(archive)
+            file_stream.seek(0)
+        has_images = False
         md_content = ""
         with _read_xlsx_sheets(file_stream) as (sheets, workbook_stream):
+            with zipfile.ZipFile(workbook_stream) as archive:
+                has_images = any(
+                    n.startswith("xl/media/") and not n.endswith("/")
+                    for n in archive.namelist()
+                )
             images = None
-            if type(self)._image_to_html is not XlsxConverter._image_to_html:
+            if (
+                kwargs.get("extract_media")
+                or type(self)._image_to_html is not XlsxConverter._image_to_html
+            ):
                 from ..converter_utils._xlsx_images import _XlsxImages
 
                 images = _XlsxImages(workbook_stream)
@@ -158,7 +174,15 @@ class XlsxConverter(DocumentConverter):
                     + "\n\n"
                 )
                 if images is not None:
-                    image_content = images.to_html(s, self._image_to_html, kwargs)
+                    image_content = images.to_html(
+                        s,
+                        (
+                            image_html
+                            if kwargs.get("extract_media")
+                            else self._image_to_html
+                        ),
+                        kwargs,
+                    )
                     if image_content:
                         md_content += (
                             self._html_converter.convert_string(
@@ -167,7 +191,10 @@ class XlsxConverter(DocumentConverter):
                             + "\n\n"
                         )
 
-        return DocumentConverterResult(markdown=md_content.strip())
+        return DocumentConverterResult(
+            markdown=md_content.strip(),
+            image_content_omitted=has_images and not kwargs.get("extract_media"),
+        )
 
     def _image_to_html(
         self,

@@ -87,6 +87,15 @@ class DocxConverter(HtmlConverter):
                 _dependency_exc_info[2]
             )
 
+        from .._media import check_media_options, image_html, validate_members
+
+        check_media_options(kwargs)
+        if kwargs.get("extract_media"):
+            import zipfile
+
+            with zipfile.ZipFile(file_stream) as archive:
+                validate_members(archive)
+            file_stream.seek(0)
         pre_process_stream = pre_process_docx(file_stream)
 
         caller_style_map = kwargs.get("style_map")
@@ -104,10 +113,16 @@ class DocxConverter(HtmlConverter):
 
         image_adapter = None
         mammoth_kwargs: dict[str, Any] = {}
-        if type(self)._image_to_html is not DocxConverter._image_to_html:
+        if (
+            kwargs.get("extract_media")
+            or type(self)._image_to_html is not DocxConverter._image_to_html
+        ):
             from ..converter_utils.docx._images import _DocxImages
 
-            image_adapter = _DocxImages(self._image_to_html, kwargs)
+            image_adapter = _DocxImages(
+                image_html if kwargs.get("extract_media") else self._image_to_html,
+                kwargs,
+            )
             mammoth_kwargs["convert_image"] = image_adapter.convert_image
 
         html_result = mammoth.convert_to_html(
@@ -120,7 +135,12 @@ class DocxConverter(HtmlConverter):
         if image_adapter is not None:
             html_result = image_adapter.replace_images(html_result)
 
-        return self._html_converter.convert_string(html_result, **kwargs)
+        converted = self._html_converter.convert_string(html_result, **kwargs)
+        if image_adapter is not None and image_adapter.omitted:
+            converted.markdown += "\n\n![Image omitted]"
+            converted.unsupported_media = True
+            converted.image_content_omitted = True
+        return converted
 
     def _image_to_html(
         self,
