@@ -128,3 +128,17 @@ def test_ocr_topic_recipes_run(tmp_path) -> None:
 
 def test_conversion_api_unaffected() -> None:
     assert MarkItDown() is not None
+
+
+def test_install_topic_documents_external_programs() -> None:
+    text = _run("--guide", "install").stdout
+    for needle in (
+        "exiftool",
+        "Gyan.FFmpeg",
+        "winget",
+        "brew install",
+        "apt install",
+        "ko-KR",
+        "EXIFTOOL_PATH",
+    ):
+        assert needle in text, needle

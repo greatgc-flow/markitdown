@@ -70,3 +70,10 @@ S4 assemble: append `## OCR p3 (peer, model, date)` after the converted text; ca
 - Python 3.10-3.15. On 3.15 magika (content sniffing) and youtube transcripts are unavailable: always pass the extension or MIME type for stdin/bytes.
 - Windows: set `PYTHONUTF8=1`; a short temp path avoids pip git-clone path-length errors.
 - `-p/--use-plugins` enables plugins; `-d -e ENDPOINT` uses Azure Document Intelligence.
+External programs (NOT installed by pip; optional, install only when needed; check with `exiftool -ver` / `ffmpeg -version`):
+- exiftool (>= 12.24): adds EXIF/tag metadata lines for images and audio; without it conversion still works. Set `EXIFTOOL_PATH` if it is not on PATH.
+  Windows `winget install OliverBetz.ExifTool` | macOS `brew install exiftool` | Debian/Ubuntu `sudo apt install libimage-exiftool-perl`.
+- ffmpeg: decodes audio for `[audio-transcription]` only. Windows `winget install Gyan.FFmpeg` | macOS `brew install ffmpeg` | Debian/Ubuntu `sudo apt install ffmpeg`.
+- Audio transcription is Google's online speech service (the audio leaves the machine; not for sensitive recordings), default language en-US.
+  Korean: Python API only, `MarkItDown().convert("a.mp3", language="ko-KR")`; the CLI has no language option.
+- OCR (`--guide ocr`) needs none of these.
