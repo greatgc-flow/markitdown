@@ -4,7 +4,7 @@ MarkItDown: convert files to Markdown (stdout). Inspect output before trusting i
   markitdown FILE --ocr-report -o r.json   inspect pages/images for OCR
   markitdown FILE --extract-media assets -o out.md   link original image bytes
   markitdown --guide TOPIC        topics: formats ocr errors install | all
-  pip install "markitdown-gc[all]"   (or [pdf] [docx] [hwp] ...)
+  pip install markitdown-gc   (pdf docx pptx xlsx hwp/hwpx included; no extras needed)
 Next steps:
   Empty/scanned output or image placeholders? Run markitdown FILE --ocr-report.
   Report exit 0 = report produced: check decision, coverage, candidates and issues.
@@ -20,7 +20,7 @@ What you actually get (text only, no layout fidelity):
 - PDF: text per page; tables best-effort; scanned pages give NO text (see ocr).
 - DOCX/PPTX: headings, lists, tables, alt text; images are `![alt](file)` or truncated `data:` refs (`--keep-data-uris` keeps them, huge). PPTX has `<!-- Slide number: N -->`.
 - XLSX/XLS/CSV: one table per sheet. XLSX image extraction is opt-in.
-- HWP/HWPX (`[hwp]`, also in `[all]`): text + pipe tables (merged cells flattened), images `[IMAGE]`, footnotes appended; HWP < 5.0 and encrypted files unsupported.
+- HWP/HWPX (included by default): text + pipe tables (merged cells flattened), images `[IMAGE]`, footnotes appended; HWP < 5.0 and encrypted files unsupported.
 - HTML, EPUB, RSS, IPYNB, JSON/XML/text, ZIP (recursive), MSG: text/structure.
 - Image: EXIF only if `exiftool` is installed, caption only with an LLM client; otherwise empty.
 - Audio: metadata + transcript (`[audio-transcription]`, ffmpeg, network).
@@ -80,7 +80,7 @@ S4 assemble: append `## OCR p3 (peer, model, date)` after the converted text; le
 - Batch: loop in your own code, catch the three exceptions, log failures, continue.
 
 ## install
-- `pip install "markitdown-gc[all]"` or per format: `[pdf] [docx] [pptx] [xlsx] [xls] [outlook] [hwp] [audio-transcription] [youtube-transcription]`.
+- `pip install markitdown-gc` installs every document converter (pdf, docx, pptx, xlsx/xls, outlook, hwp/hwpx). Only `[audio-transcription]`, `[youtube-transcription]` and the Azure extras (`[az-doc-intel]`, `[az-content-understanding]`) are optional; `[all]` adds them. Per-format extras such as `[pdf]` still work as no-op aliases.
 - Python 3.10-3.15. On 3.15 magika (content sniffing) and youtube transcripts are unavailable: always pass the extension or MIME type for stdin/bytes.
 - Windows: set `PYTHONUTF8=1`; a short temp path avoids pip git-clone path-length errors.
 - `-p/--use-plugins` enables plugins; `-d -e ENDPOINT` uses Azure Document Intelligence.

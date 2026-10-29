@@ -15,4 +15,4 @@ def test_install_hints_use_fork_distribution():
         text = path.read_text(encoding="utf-8")
         assert not upstream_install.search(text), path
     guide = (source / "GUIDE.md").read_text(encoding="utf-8")
-    assert 'pip install "markitdown-gc[all]"' in guide
+    assert "pip install markitdown-gc" in guide
