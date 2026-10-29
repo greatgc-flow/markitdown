@@ -1,0 +1,42 @@
+name: sync-upstream
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Merge microsoft/markitdown main into sync/upstream
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/microsoft/markitdown.git
+          git fetch upstream main
+          if git merge-base --is-ancestor upstream/main origin/main; then
+            echo "Already up to date."
+            exit 0
+          fi
+          git switch -C sync/upstream origin/main
+          if git merge --no-edit upstream/main; then
+            git push --force origin sync/upstream
+            if [ -z "$(gh pr list --head sync/upstream --state open --json number -q '.[].number')" ]; then
+              gh pr create --base main --head sync/upstream \
+                --title "Sync with microsoft/markitdown main" \
+                --body "Automated weekly merge of upstream main. Review, run tests, then merge."
+            fi
+          else
+            git merge --abort
+            gh issue create --title "Upstream sync has merge conflicts" \
+              --body "Merging microsoft/markitdown main into main conflicts. Merge it manually: git merge upstream/main"
+          fi
