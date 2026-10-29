@@ -1,12 +1,12 @@
 MarkItDown: convert files to Markdown (stdout). Inspect output before trusting it.
-  markitdown FILE                 convert        markitdown FILE -o out.md   write file
-  cat FILE | markitdown -x .pdf   stdin (-x = extension hint)
-  markitdown FILE --ocr-report -o r.json   inspect pages/images for OCR
-  markitdown FILE --extract-media assets -o out.md   link original image bytes
-  markitdown --guide TOPIC        topics: formats ocr errors install | all
+  markitdown-gc FILE                 convert        markitdown-gc FILE -o out.md   write file
+  cat FILE | markitdown-gc -x .pdf   stdin (-x = extension hint)
+  markitdown-gc FILE --ocr-report -o r.json   inspect pages/images for OCR
+  markitdown-gc FILE --extract-media assets -o out.md   link original image bytes
+  markitdown-gc --guide TOPIC        topics: formats ocr errors install | all
   pip install markitdown-gc   (pdf docx pptx xlsx hwp/hwpx included; no extras needed)
 Next steps:
-  Empty/scanned output or image placeholders? Run markitdown FILE --ocr-report.
+  Empty/scanned output or image placeholders? Run markitdown-gc FILE --ocr-report.
   Report exit 0 = report produced: check decision, coverage, candidates and issues.
   JSON goes to stdout or ONLY to -o; the -o summary goes to stderr.
   OCR needs approval and verification; markitdown never launches OCR (--guide ocr).
@@ -30,7 +30,7 @@ What you actually get (text only, no layout fidelity):
 ## ocr
 markitdown never OCRs. It reports where OCR is needed; peers (cc/cx via peerhub) transcribe. Pages/images leave the machine: sensitive
 documents (medical, legal, personal) and jobs over 20 pages/images need the owner's approval; one approval = at most 10 asks x 3 pages.
-Supports PDF, raster, DOCX, PPTX, XLSX, HWP5, HWPX. S0 triage: `markitdown FILE --ocr-report -o r.json` (summary on stderr). Read only the verdict part:
+Supports PDF, raster, DOCX, PPTX, XLSX, HWP5, HWPX. S0 triage: `markitdown-gc FILE --ocr-report -o r.json` (summary on stderr). Read only the verdict part:
 ```python
 # recipe:read
 import json
@@ -75,8 +75,8 @@ S4 assemble: append `## OCR p3 (peer, model, date)` after the converted text; le
 - FileConversionException: a converter accepted the file but failed (corrupt/encrypted); the message lists attempts.
 - Exit codes: 0 success/report produced; 1 execution/output failure; 2 invalid arguments or unknown guide topic. Reports may have unknown/partial coverage.
 - `--ocr-report` accepts only FILE, -o and --ocr-report-samples; conversion options are rejected (exit 2). JSON stays on stdout or only in -o; its summary uses stderr.
-- The CLI adds `hint: markitdown --guide errors` on stderr for these exceptions and `hint: no text extracted; inspect the source and run markitdown FILE --ocr-report` when the output is empty.
-- Image omissions/truncation add a static stderr hint to run `markitdown FILE --ocr-report` and read `--guide ocr`. Hints never contain document text.
+- The CLI adds `hint: markitdown-gc --guide errors` on stderr for these exceptions and `hint: no text extracted; inspect the source and run markitdown-gc FILE --ocr-report` when the output is empty.
+- Image omissions/truncation add a static stderr hint to run `markitdown-gc FILE --ocr-report` and read `--guide ocr`. Hints never contain document text.
 - Batch: loop in your own code, catch the three exceptions, log failures, continue.
 
 ## install

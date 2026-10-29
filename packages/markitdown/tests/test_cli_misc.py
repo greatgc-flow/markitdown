@@ -41,7 +41,7 @@ def test_invalid_flag() -> None:
     assert (
         "unrecognized arguments" in result.stderr
     ), "Expected 'unrecognized arguments' to appear in STDERR"
-    assert "usage: markitdown [OPTIONS] [FILE]" in result.stderr
+    assert "usage: markitdown-gc [OPTIONS] [FILE]" in result.stderr
 
 
 def test_windows_pipe_input_is_buffered_before_conversion(monkeypatch, capsys) -> None:

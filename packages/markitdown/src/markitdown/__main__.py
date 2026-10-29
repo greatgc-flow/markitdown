@@ -20,10 +20,10 @@ from ._exceptions import (
 def main():
     parser = argparse.ArgumentParser(
         description="Convert various file formats to markdown.",
-        prog="markitdown",
+        prog="markitdown-gc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage="%(prog)s [OPTIONS] [FILE]",
-        epilog="AI agents / quick start: markitdown --guide   (OCR triage: markitdown --guide ocr)",
+        epilog="AI agents / quick start: markitdown-gc --guide   (OCR triage: markitdown-gc --guide ocr)",
     )
 
     parser.add_argument(
@@ -315,17 +315,17 @@ def main():
         MissingDependencyException,
         FileConversionException,
     ):
-        sys.stderr.write("hint: markitdown --guide errors\n")
+        sys.stderr.write("hint: markitdown-gc --guide errors\n")
         raise
 
     if not result.markdown.strip():
         sys.stderr.write(
-            "hint: no text extracted; inspect the source and run markitdown FILE --ocr-report\n"
+            "hint: no text extracted; inspect the source and run markitdown-gc FILE --ocr-report\n"
         )
 
     if result.image_content_omitted is True:
         sys.stderr.write(
-            "hint: image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr.\n"
+            "hint: image content omitted or truncated; run markitdown-gc FILE --ocr-report. See markitdown-gc --guide ocr.\n"
         )
     if result.unsupported_media is True:
         sys.stderr.write("warning: unsupported media omitted; inspect the source.\n")

@@ -1,4 +1,4 @@
-"""Layered `markitdown --guide`: quick card, per-topic sections and token budgets."""
+"""Layered `markitdown-gc --guide`: quick card, per-topic sections and token budgets."""
 
 import re
 import subprocess

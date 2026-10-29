@@ -80,10 +80,10 @@ pip install -e 'packages/markitdown[all]'
 ```bash
 markitdown input.pdf -o output.md           # convert
 markitdown input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
-markitdown --guide                          # 20-line quick card; topics: formats ocr errors install
+markitdown-gc --guide                          # 20-line quick card; topics: formats ocr errors install
 ```
 
-Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown --guide`.
+Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown-gc --guide`.
 
 ```bash
 markitdown path-to-file.pdf > document.md
@@ -134,7 +134,7 @@ The backend, `hwp-hwpx-parser`, is pure Python and supports all platforms withou
 Tables become Markdown pipe rows in document order. Merged cells are flattened: cell text is preserved, but spans and layout are lost. Images are omitted as `[IMAGE]` placeholders. Footnote and endnote bodies are appended as Markdown definitions. Existing global Markdown whitespace normalization still applies.
 
 Use `--extract-media assets -o out.md` to save original DOCX/PPTX/XLSX/HWP5/HWPX image payloads and link them from Markdown. It is exclusive with `--keep-data-uris`; unsupported media is marked explicitly. Default Markdown stays unchanged.
-Use `--ocr-report [-o report.json]` for local image/page triage (including HWP5 media). JSON goes to stdout or only to the output file; the file summary goes to stderr. Exit codes: 0 report produced, 1 execution/output failure, 2 invalid arguments. Check decision and coverage even after exit 0. Read `markitdown --guide ocr` for the approval and verification workflow.
+Use `--ocr-report [-o report.json]` for local image/page triage (including HWP5 media). JSON goes to stdout or only to the output file; the file summary goes to stderr. Exit codes: 0 report produced, 1 execution/output failure, 2 invalid arguments. Check decision and coverage even after exit 0. Read `markitdown-gc --guide ocr` for the approval and verification workflow.
 
 HWP versions before 5.0, encrypted/distribution documents, exact page layout, headers/footers, OCR, and writing HWP are not supported. No table normalization, replacement parser, or document size/time limits are added. A valid HWPX ZIP with invalid document XML may fall through to the existing ZIP converter when a ZIP format guess is available.
 
