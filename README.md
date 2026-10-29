@@ -78,27 +78,27 @@ pip install -e 'packages/markitdown[all]'
 ### Command-Line
 
 ```bash
-markitdown input.pdf -o output.md           # convert
-markitdown input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
-markitdown --guide                          # 20-line quick card; topics: formats ocr errors install
+markitdown-gc input.pdf -o output.md           # convert
+markitdown-gc input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
+markitdown-gc --guide                          # 20-line quick card; topics: formats ocr errors install
 ```
 
-Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown --guide`.
+Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown-gc --guide`.
 
 ```bash
-markitdown path-to-file.pdf > document.md
+markitdown-gc path-to-file.pdf > document.md
 ```
 
 Or use `-o` to specify the output file:
 
 ```bash
-markitdown path-to-file.pdf -o document.md
+markitdown-gc path-to-file.pdf -o document.md
 ```
 
 You can also pipe content:
 
 ```bash
-cat path-to-file.pdf | markitdown
+cat path-to-file.pdf | markitdown-gc
 ```
 
 ### Optional Dependencies
@@ -134,7 +134,7 @@ The backend, `hwp-hwpx-parser`, is pure Python and supports all platforms withou
 Tables become Markdown pipe rows in document order. Merged cells are flattened: cell text is preserved, but spans and layout are lost. Images are omitted as `[IMAGE]` placeholders. Footnote and endnote bodies are appended as Markdown definitions. Existing global Markdown whitespace normalization still applies.
 
 Use `--extract-media assets -o out.md` to save original DOCX/PPTX/XLSX/HWP5/HWPX image payloads and link them from Markdown. It is exclusive with `--keep-data-uris`; unsupported media is marked explicitly. Default Markdown stays unchanged.
-Use `--ocr-report [-o report.json]` for local image/page triage (including HWP5 media). JSON goes to stdout or only to the output file; the file summary goes to stderr. Exit codes: 0 report produced, 1 execution/output failure, 2 invalid arguments. Check decision and coverage even after exit 0. Read `markitdown --guide ocr` for the approval and verification workflow.
+Use `--ocr-report [-o report.json]` for local image/page triage (including HWP5 media). JSON goes to stdout or only to the output file; the file summary goes to stderr. Exit codes: 0 report produced, 1 execution/output failure, 2 invalid arguments. Check decision and coverage even after exit 0. Read `markitdown-gc --guide ocr` for the approval and verification workflow.
 
 HWP versions before 5.0, encrypted/distribution documents, exact page layout, headers/footers, OCR, and writing HWP are not supported. No table normalization, replacement parser, or document size/time limits are added. A valid HWPX ZIP with invalid document XML may fall through to the existing ZIP converter when a ZIP format guess is available.
 
@@ -143,13 +143,13 @@ HWP versions before 5.0, encrypted/distribution documents, exact page layout, he
 MarkItDown also supports 3rd-party plugins. Plugins are disabled by default. To list installed plugins:
 
 ```bash
-markitdown --list-plugins
+markitdown-gc --list-plugins
 ```
 
 To enable plugins use:
 
 ```bash
-markitdown --use-plugins path-to-file.pdf
+markitdown-gc --use-plugins path-to-file.pdf
 ```
 
 To find available plugins, search GitHub for the hashtag `#markitdown-plugin`. To develop a plugin, see `packages/markitdown-sample-plugin`.
@@ -201,22 +201,22 @@ Content Understanding is ideal when you need capabilities beyond what built-in o
 | Capability | Built-in converters | Azure Document Intelligence | Azure Content Understanding |
 |------------|---------------------|-----------------------------|-----------------------------|
 | Document conversion | Offline, format-specific extraction | Cloud layout extraction | Cloud multimodal extraction |
-| Structured fields | Not available | Not exposed by this integration | YAML front matter from analyzer fields |
-| Custom analyzers | Not available | Not configurable in this integration | Supported with `cu_analyzer_id` |
+| Structured fields | Not available | YAML front matter from model or query fields | YAML front matter from analyzer fields |
+| Custom analyzers/models | Not available | Supported with `docintel_model_id` | Supported with `cu_analyzer_id` |
 | Audio and video | Basic audio, no video | Not supported | Audio and video analyzers |
 | Cost | Local compute only | Billable Azure API calls | Billable Azure API calls |
 
 **CLI:**
 
 ```bash
-markitdown path-to-file.pdf --use-cu --cu-endpoint "<content_understanding_endpoint>"
+markitdown-gc path-to-file.pdf --use-cu --cu-endpoint "<content_understanding_endpoint>"
 ```
 
 The endpoint can also be set once in the environment, so callers only need `--use-cu`:
 
 ```bash
 export MARKITDOWN_CU_ENDPOINT="<content_understanding_endpoint>"
-markitdown path-to-file.pdf --use-cu
+markitdown-gc path-to-file.pdf --use-cu
 ```
 
 **Python API:**
@@ -272,15 +272,41 @@ More information about Azure Content Understanding can be found [here](https://l
 To use Microsoft Document Intelligence for conversion:
 
 ```bash
-markitdown path-to-file.pdf -o document.md -d -e "<document_intelligence_endpoint>"
+export AZURE_API_KEY="<document_intelligence_api_key>"
+markitdown-gc path-to-file.pdf -o document.md -d -e "<document_intelligence_endpoint>"
 ```
 
 The endpoint can also be set once in the environment, so callers only need `-d`:
 
 ```bash
 export MARKITDOWN_DOCINTEL_ENDPOINT="<document_intelligence_endpoint>"
-markitdown path-to-file.pdf -o document.md -d
+markitdown-gc path-to-file.pdf -o document.md -d
 ```
+
+If `AZURE_API_KEY` is not set, MarkItDown uses `DefaultAzureCredential`.
+
+Select a model, configure analysis add-ons, or request fields from the CLI:
+
+```bash
+markitdown-gc document.pdf --use-docintel \
+  --endpoint "<document_intelligence_endpoint>" \
+  --docintel-model-id prebuilt-layout \
+  --docintel-features "ocrHighResolution,styleFont" \
+  --docintel-query-fields "Title,Author"
+```
+
+No analysis add-ons are enabled by default. Use `--docintel-features` to opt in,
+or `--docintel-features none` to explicitly request no add-ons. Analysis add-ons
+and query fields apply only to OCR-supported inputs such as PDFs and images.
+
+Available feature values are `barcodes`, `formulas`, `keyValuePairs`,
+`languages`, `ocrHighResolution`, and `styleFont`. The `formulas`,
+`ocrHighResolution`, and `styleFont` features incur additional charges, as does
+the `queryFields` add-on, which is priced differently from the other add-ons.
+See the
+[Document Intelligence add-on documentation](https://learn.microsoft.com/azure/ai-services/document-intelligence/concept/add-on-capabilities?view=doc-intel-4.0.0)
+and [pricing](https://azure.microsoft.com/pricing/details/document-intelligence/)
+for details.
 
 More information about how to set up an Azure Document Intelligence Resource can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/create-document-intelligence-resource?view=doc-intel-4.0.0)
 
@@ -296,15 +322,52 @@ result = md.convert("test.xlsx")
 print(result.markdown)
 ```
 
-Document Intelligence conversion in Python:
+Document Intelligence conversion in Python using an API key:
 
 ```python
+from azure.core.credentials import AzureKeyCredential
 from markitdown import MarkItDown
 
-md = MarkItDown(docintel_endpoint="<document_intelligence_endpoint>")
+md = MarkItDown(
+    docintel_endpoint="<document_intelligence_endpoint>",
+    docintel_credential=AzureKeyCredential("<document_intelligence_api_key>"),
+)
 result = md.convert("test.pdf")
 print(result.markdown)
 ```
+
+Omit `docintel_credential` to use `AZURE_API_KEY` when it is set, or
+`DefaultAzureCredential` otherwise.
+
+Configure the model, analysis add-ons, and structured query fields:
+
+```python
+from azure.ai.documentintelligence.models import DocumentAnalysisFeature
+from markitdown import MarkItDown
+
+md = MarkItDown(
+    docintel_endpoint="<document_intelligence_endpoint>",
+    docintel_model_id="prebuilt-layout",
+    docintel_features=[
+        DocumentAnalysisFeature.OCR_HIGH_RESOLUTION,
+        DocumentAnalysisFeature.STYLE_FONT,
+    ],
+    docintel_query_fields=["Title", "Author"],
+)
+result = md.convert("test.pdf")
+print(result.markdown)
+```
+
+Omit `docintel_features` or set `docintel_features=[]` to request no analysis
+add-ons. When query fields are provided, MarkItDown automatically enables the
+required `queryFields` add-on.
+Models that return structured fields prepend them to the Markdown as YAML front
+matter. A single document uses a top-level `fields` mapping. When the service
+returns multiple documents, the front matter instead contains a `documents`
+list in service order, with a separate `fields` mapping for each document.
+Documents without extracted fields retain an empty mapping in that list; no
+front matter is emitted when all documents have empty fields. Selection groups
+are represented as lists of selected values.
 
 To use Large Language Models for image descriptions (currently only for pptx and image files), provide `llm_client` and `llm_model`:
 
@@ -372,8 +435,8 @@ Projects like these are genuinely useful, and we would rather see them thrive th
 MarkItDown supports 3rd-party plugins, so support for a new format can be published and installed independently of this repository:
 
 ```sh
-markitdown --list-plugins
-markitdown --use-plugins path-to-file.pdf
+markitdown-gc --list-plugins
+markitdown-gc --use-plugins path-to-file.pdf
 ```
 
 See `packages/markitdown-sample-plugin` to get started, and tag your repository `#markitdown-plugin` so that others can find it.

@@ -123,7 +123,7 @@ def test_empty_output_prints_hint_on_stderr_only() -> None:
     assert result.returncode == 0
     assert _text(result.stdout).strip() == ""
     assert (
-        "hint: no text extracted; inspect the source and run markitdown FILE --ocr-report"
+        "hint: no text extracted; inspect the source and run markitdown-gc FILE --ocr-report"
         in _text(result.stderr)
     )
     assert str(SCAN) not in _text(result.stderr)
@@ -141,7 +141,7 @@ def test_error_hint_keeps_failure_status_and_traceback() -> None:
     assert result.returncode == 1
     stderr = _text(result.stderr)
     assert "UnsupportedFormatException" in stderr
-    assert "hint: markitdown --guide errors" in stderr
+    assert "hint: markitdown-gc --guide errors" in stderr
 
 
 @pytest.mark.parametrize("fmt", ["docx", "pptx", "xlsx"])
@@ -152,7 +152,7 @@ def test_observed_images_hint_once_and_output_clean(tmp_path, fmt):
     path.write_bytes(source(fmt))
     result = _run(str(path))
     assert result.returncode == 0, result.stderr
-    hint = b"hint: image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr."
+    hint = b"hint: image content omitted or truncated; run markitdown-gc FILE --ocr-report. See markitdown-gc --guide ocr."
     assert result.stderr.count(hint) == 1
     assert b"hint:" not in result.stdout
     assets = tmp_path / "assets"

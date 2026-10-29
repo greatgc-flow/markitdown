@@ -20,10 +20,10 @@ from ._exceptions import (
 def main():
     parser = argparse.ArgumentParser(
         description="Convert various file formats to markdown.",
-        prog="markitdown",
+        prog="markitdown-gc",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         usage="%(prog)s [OPTIONS] [FILE]",
-        epilog="AI agents / quick start: markitdown --guide   (OCR triage: markitdown --guide ocr)",
+        epilog="AI agents / quick start: markitdown-gc --guide   (OCR triage: markitdown-gc --guide ocr)",
     )
 
     parser.add_argument(
@@ -99,6 +99,33 @@ def main():
         "--cu-file-types",
         type=str,
         help="Comma-separated list of file types to route to Content Understanding (e.g., pdf,jpeg,mp4). If omitted, all supported types are routed.",
+    )
+
+    parser.add_argument(
+        "--docintel-model-id",
+        type=str,
+        default=None,
+        help="Document Intelligence model ID (e.g., 'prebuilt-layout', 'prebuilt-invoice', or a custom model ID). Defaults to 'prebuilt-layout'.",
+    )
+
+    parser.add_argument(
+        "--docintel-query-fields",
+        type=str,
+        default=None,
+        help="Comma-separated list of field names to extract via the billable Document Intelligence queryFields add-on (OCR file types only).",
+    )
+
+    parser.add_argument(
+        "--docintel-features",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated Document Intelligence analysis add-ons for OCR file types. "
+            "Available values: barcodes, formulas, keyValuePairs, languages, "
+            "ocrHighResolution, and styleFont. The formulas, ocrHighResolution, and "
+            "styleFont incur additional charges. No add-ons are enabled by default; "
+            "use 'none' to explicitly request none."
+        ),
     )
 
     parser.add_argument(
@@ -259,9 +286,28 @@ def main():
         elif args.filename is None:
             parser.error("Filename is required when using Document Intelligence.")
 
-        markitdown = MarkItDown(
-            enable_plugins=args.use_plugins, docintel_endpoint=args.endpoint
-        )
+        docintel_kwargs: Dict[str, Any] = {
+            "docintel_endpoint": args.endpoint,
+        }
+        if args.docintel_model_id:
+            docintel_kwargs["docintel_model_id"] = args.docintel_model_id
+        if args.docintel_features is not None:
+            if args.docintel_features.strip().lower() == "none":
+                docintel_kwargs["docintel_features"] = []
+            else:
+                docintel_kwargs["docintel_features"] = [
+                    feature.strip()
+                    for feature in args.docintel_features.split(",")
+                    if feature.strip()
+                ]
+        if args.docintel_query_fields:
+            fields = [
+                f.strip() for f in args.docintel_query_fields.split(",") if f.strip()
+            ]
+            if fields:
+                docintel_kwargs["docintel_query_fields"] = fields
+
+        markitdown = MarkItDown(enable_plugins=args.use_plugins, **docintel_kwargs)
     elif args.use_cu:
         if args.cu_endpoint is None:
             parser.error(
@@ -315,17 +361,17 @@ def main():
         MissingDependencyException,
         FileConversionException,
     ):
-        sys.stderr.write("hint: markitdown --guide errors\n")
+        sys.stderr.write("hint: markitdown-gc --guide errors\n")
         raise
 
     if not result.markdown.strip():
         sys.stderr.write(
-            "hint: no text extracted; inspect the source and run markitdown FILE --ocr-report\n"
+            "hint: no text extracted; inspect the source and run markitdown-gc FILE --ocr-report\n"
         )
 
     if result.image_content_omitted is True:
         sys.stderr.write(
-            "hint: image content omitted or truncated; run markitdown FILE --ocr-report. See markitdown --guide ocr.\n"
+            "hint: image content omitted or truncated; run markitdown-gc FILE --ocr-report. See markitdown-gc --guide ocr.\n"
         )
     if result.unsupported_media is True:
         sys.stderr.write("warning: unsupported media omitted; inspect the source.\n")

@@ -33,7 +33,7 @@ pip install openai
 ### Command Line
 
 ```bash
-markitdown document.pdf --use-plugins --llm-client openai --llm-model gpt-4o
+markitdown-gc document.pdf --use-plugins --llm-client openai --llm-model gpt-4o
 ```
 
 ### Python API
@@ -170,7 +170,7 @@ md = MarkItDown(
 Confirm the plugin is installed and discovered:
 
 ```bash
-markitdown --list-plugins   # should show: ocr
+markitdown-gc --list-plugins   # should show: ocr
 ```
 
 ### API errors

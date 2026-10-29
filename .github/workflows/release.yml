@@ -34,7 +34,7 @@ jobs:
         run: |
           python -m venv .smoke
           .smoke/bin/python -m pip install dist/*.whl
-          .smoke/bin/markitdown --version
+          .smoke/bin/markitdown-gc --version
       - uses: actions/upload-artifact@v7
         with:
           name: release-distributions

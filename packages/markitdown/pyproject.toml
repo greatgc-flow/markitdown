@@ -36,9 +36,21 @@ dependencies = [
   "magika>=0.6.1,<2; python_full_version < '3.15'",
   "charset-normalizer",
   "defusedxml",
+  # Document converters are installed by default (pdf, docx, pptx, xlsx/xls, hwp/hwpx, outlook).
+  "hwp-hwpx-parser>=1.0,<1.1",
+  "python-pptx",
+  "mammoth>=1.12.2,<2",
+  "pandas",
+  "openpyxl",
+  "xlrd",
+  "lxml",
+  "pdfminer.six>=20251230",
+  "pdfplumber>=0.11.9",
+  "olefile",
 ]
 
 [project.optional-dependencies]
+# Per-format extras are kept as aliases of the default install for compatibility.
 all = [
   "hwp-hwpx-parser>=1.0,<1.1",
   "python-pptx",
@@ -79,7 +91,7 @@ Source = "https://github.com/greatgc-flow/markitdown"
 path = "src/markitdown/__about__.py"
 
 [project.scripts]
-markitdown = "markitdown.__main__:main"
+markitdown-gc = "markitdown.__main__:main"
 
 [tool.hatch.envs.default]
 features = ["all"]
@@ -88,6 +100,7 @@ features = ["all"]
 features = ["all"]
 extra-dependencies = [
   "openai",
+  "pyyaml",
 ]
 
 [tool.hatch.envs.types]

@@ -31,4 +31,4 @@ ARG GROUPID=nogroup
 
 USER $USERID:$GROUPID
 
-ENTRYPOINT [ "markitdown" ]
+ENTRYPOINT [ "markitdown-gc" ]

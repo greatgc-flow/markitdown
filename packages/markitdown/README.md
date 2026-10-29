@@ -16,10 +16,10 @@
 From PyPI:
 
 ```bash
-pip install 'markitdown-gc[all]'
+pip install markitdown-gc
 ```
 
-HWP5/HWPX support is included in `[all]` or installed separately with `pip install 'markitdown-gc[hwp]'`. The backend is pure Python for all platforms. Tables use pipe rows (merged cells lose their spans), images become `[IMAGE]` placeholders, and note bodies are included. HWP < 5, encrypted/distribution documents, headers/footers, and exact layout are unsupported. See the project [HWP/HWPX documentation](https://github.com/greatgc-flow/markitdown#hwphwpx) for details.
+All document converters (PDF, DOCX, PPTX, XLSX/XLS, Outlook, HWP5/HWPX) are included in the default install; `markitdown-gc --guide` explains usage. Audio, YouTube and Azure support stay optional (`[all]` adds them). The backend is pure Python for all platforms. Tables use pipe rows (merged cells lose their spans), images become `[IMAGE]` placeholders, and note bodies are included. HWP < 5, encrypted/distribution documents, headers/footers, and exact layout are unsupported. See the project [HWP/HWPX documentation](https://github.com/greatgc-flow/markitdown#hwphwpx) for details.
 
 From source:
 
@@ -34,7 +34,7 @@ pip install -e 'packages/markitdown[all]'
 ### Command-Line
 
 ```bash
-markitdown path-to-file.pdf > document.md
+markitdown-gc path-to-file.pdf > document.md
 ```
 
 ### Python API
