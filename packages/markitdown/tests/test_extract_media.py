@@ -259,3 +259,16 @@ def test_hwp_reference_alias_collision_is_rejected(tmp_path):
     ]
     with pytest.raises(ValueError, match="colliding"):
         extract_hwp_markdown("[IMAGE: same]", rows, extract_media=tmp_path)
+
+
+def test_save_media_other_drive_falls_back_to_file_uri(tmp_path, monkeypatch):
+    """os.path.relpath raises ValueError across Windows drives; use an absolute file URI."""
+    from markitdown import _media
+
+    def other_drive(*args, **kwargs):
+        raise ValueError("path is on mount 'C:', start on mount 'D:'")
+
+    monkeypatch.setattr(_media.os.path, "relpath", other_drive)
+    uri = _media.save_media(b"data", "png", extract_media=str(tmp_path / "assets"))
+    assert uri.startswith("file:///")
+    assert uri.endswith(".png")
