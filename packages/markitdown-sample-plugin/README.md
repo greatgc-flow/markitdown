@@ -85,13 +85,13 @@ pip install -e .
 Once the plugin package is installed, verify that it is available to MarkItDown by running:
 
 ```bash
-markitdown --list-plugins
+markitdown-gc --list-plugins
 ```
 
 To use the plugin for a conversion use the `--use-plugins` flag. For example, to convert an RTF file:
 
 ```bash
-markitdown --use-plugins path-to-file.rtf
+markitdown-gc --use-plugins path-to-file.rtf
 ```
 
 In Python, plugins can be enabled as follows:

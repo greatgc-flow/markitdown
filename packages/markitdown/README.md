@@ -34,7 +34,7 @@ pip install -e 'packages/markitdown[all]'
 ### Command-Line
 
 ```bash
-markitdown path-to-file.pdf > document.md
+markitdown-gc path-to-file.pdf > document.md
 ```
 
 ### Python API

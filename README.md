@@ -78,27 +78,27 @@ pip install -e 'packages/markitdown[all]'
 ### Command-Line
 
 ```bash
-markitdown input.pdf -o output.md           # convert
-markitdown input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
+markitdown-gc input.pdf -o output.md           # convert
+markitdown-gc input.pdf --ocr-report -o r.json # which pages/images need OCR (PDF, images)
 markitdown-gc --guide                          # 20-line quick card; topics: formats ocr errors install
 ```
 
 Scanned PDFs and images convert to an EMPTY result without an error: run `--ocr-report`. AI agents: start with `markitdown-gc --guide`.
 
 ```bash
-markitdown path-to-file.pdf > document.md
+markitdown-gc path-to-file.pdf > document.md
 ```
 
 Or use `-o` to specify the output file:
 
 ```bash
-markitdown path-to-file.pdf -o document.md
+markitdown-gc path-to-file.pdf -o document.md
 ```
 
 You can also pipe content:
 
 ```bash
-cat path-to-file.pdf | markitdown
+cat path-to-file.pdf | markitdown-gc
 ```
 
 ### Optional Dependencies
@@ -143,13 +143,13 @@ HWP versions before 5.0, encrypted/distribution documents, exact page layout, he
 MarkItDown also supports 3rd-party plugins. Plugins are disabled by default. To list installed plugins:
 
 ```bash
-markitdown --list-plugins
+markitdown-gc --list-plugins
 ```
 
 To enable plugins use:
 
 ```bash
-markitdown --use-plugins path-to-file.pdf
+markitdown-gc --use-plugins path-to-file.pdf
 ```
 
 To find available plugins, search GitHub for the hashtag `#markitdown-plugin`. To develop a plugin, see `packages/markitdown-sample-plugin`.
@@ -209,14 +209,14 @@ Content Understanding is ideal when you need capabilities beyond what built-in o
 **CLI:**
 
 ```bash
-markitdown path-to-file.pdf --use-cu --cu-endpoint "<content_understanding_endpoint>"
+markitdown-gc path-to-file.pdf --use-cu --cu-endpoint "<content_understanding_endpoint>"
 ```
 
 The endpoint can also be set once in the environment, so callers only need `--use-cu`:
 
 ```bash
 export MARKITDOWN_CU_ENDPOINT="<content_understanding_endpoint>"
-markitdown path-to-file.pdf --use-cu
+markitdown-gc path-to-file.pdf --use-cu
 ```
 
 **Python API:**
@@ -272,14 +272,14 @@ More information about Azure Content Understanding can be found [here](https://l
 To use Microsoft Document Intelligence for conversion:
 
 ```bash
-markitdown path-to-file.pdf -o document.md -d -e "<document_intelligence_endpoint>"
+markitdown-gc path-to-file.pdf -o document.md -d -e "<document_intelligence_endpoint>"
 ```
 
 The endpoint can also be set once in the environment, so callers only need `-d`:
 
 ```bash
 export MARKITDOWN_DOCINTEL_ENDPOINT="<document_intelligence_endpoint>"
-markitdown path-to-file.pdf -o document.md -d
+markitdown-gc path-to-file.pdf -o document.md -d
 ```
 
 More information about how to set up an Azure Document Intelligence Resource can be found [here](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/create-document-intelligence-resource?view=doc-intel-4.0.0)
@@ -372,8 +372,8 @@ Projects like these are genuinely useful, and we would rather see them thrive th
 MarkItDown supports 3rd-party plugins, so support for a new format can be published and installed independently of this repository:
 
 ```sh
-markitdown --list-plugins
-markitdown --use-plugins path-to-file.pdf
+markitdown-gc --list-plugins
+markitdown-gc --use-plugins path-to-file.pdf
 ```
 
 See `packages/markitdown-sample-plugin` to get started, and tag your repository `#markitdown-plugin` so that others can find it.
