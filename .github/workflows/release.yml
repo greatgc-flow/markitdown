@@ -1,26 +1,77 @@
-name: release
+name: Release
 on:
   push:
-    tags: ["v*"]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 permissions:
   contents: read
-
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re, pathlib
+          text = pathlib.Path('packages/markitdown/src/markitdown/__about__.py').read_text()
+          version = re.search(r'__version__\s*=\s*"([^"]+)"', text).group(1)
+          assert os.environ['RELEASE_TAG'] == 'v' + version, 'Tag does not match __version__'
+          PY
+      - run: python -m pip install build twine
+      - run: python -m build packages/markitdown --outdir dist
+      - run: python -m twine check dist/*
+      - name: Clean wheel smoke
+        run: |
+          python -m venv .smoke
+          .smoke/bin/python -m pip install dist/*.whl
+          .smoke/bin/markitdown-gc --version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-distributions
+          path: dist/*
   publish:
+    needs: build
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write # PyPI Trusted Publishing; no API token is stored
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/download-artifact@v8
         with:
-          python-version: "3.12"
-      - name: Build
-        working-directory: packages/markitdown
+          name: release-distributions
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+  github-release:
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-distributions
+          path: dist
+      - name: Attach distributions to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python -m pip install build
-          python -m build
-      - uses: pypa/gh-action-pypi-publish@aef6c9b6e301dc803e1bc9133e9ce67ae9b0906b # v1.14.3
-        with:
-          packages-dir: packages/markitdown/dist
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* --verify-tag --title "$RELEASE_TAG" --generate-notes
+          fi
