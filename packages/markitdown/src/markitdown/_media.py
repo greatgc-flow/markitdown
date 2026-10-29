@@ -44,7 +44,12 @@ def save_media(data, ext, **options):
         if target.read_bytes() != data:
             raise ValueError("Media hash collision")
     base = options.get("media_base_dir") or os.getcwd()
-    return quote(os.path.relpath(target, base).replace(os.sep, "/"), safe="/.-_")
+    try:
+        relative = os.path.relpath(target, base)
+    except ValueError:
+        # Windows: target and base are on different drives, so no relative path exists.
+        return target.as_uri()
+    return quote(relative.replace(os.sep, "/"), safe="/.-_")
 
 
 def image_html(stream, info, **options):
