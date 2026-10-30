@@ -156,14 +156,21 @@ def triage(source, *, samples=False):
                     os.path.splitext(os.fsdecode(source))[1].lower() if owned else ""
                 )
                 handled = False
-                if extension in {".md", ".markdown", ".html", ".htm", ".xml", ".rtf"}:
+                if size and extension in {
+                    ".md",
+                    ".markdown",
+                    ".html",
+                    ".htm",
+                    ".xml",
+                    ".rtf",
+                }:
                     _issue(
                         report,
                         "media_not_inspected",
                         "Embedded or linked media in this format were not inspected.",
                     )
                     handled = True
-                if extension in {".txt", ".log"}:
+                if size and extension in {".txt", ".log"}:
                     stream.seek(0)
                     try:
                         text = strict_text(stream.read())

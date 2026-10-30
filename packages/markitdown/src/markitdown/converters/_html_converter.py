@@ -56,7 +56,9 @@ class HtmlConverter(DocumentConverter):
         # Remove javascript and style blocks
         omitted_script = False
         for script in soup(["script", "style"]):
-            if script.name == "script" and script.get_text().strip():
+            if script.name == "script" and (
+                script.get_text().strip() or script.get("src")
+            ):
                 omitted_script = True
             script.extract()
 

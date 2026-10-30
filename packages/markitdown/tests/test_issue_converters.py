@@ -122,6 +122,15 @@ def test_triage_coverage_is_documented():
     assert "coverage.state: complete, partial, none, or not_applicable" in guide
 
 
+@pytest.mark.parametrize("suffix", [".txt", ".log", ".md", ".html"])
+def test_triage_empty_file_is_corrupt(tmp_path, suffix):
+    path = tmp_path / ("input" + suffix)
+    path.write_bytes(b"")
+    report = triage(path)
+    assert report["coverage"]["state"] == "none"
+    assert [i["code"] for i in report["issues"]] == ["corrupt"]
+
+
 @pytest.mark.parametrize("suffix", [".txt", ".log"])
 @pytest.mark.parametrize(
     "data",
@@ -167,3 +176,22 @@ def test_triage_txt_rejects_binary_and_markup(tmp_path, data):
     path = tmp_path / "input.txt"
     path.write_bytes(data)
     assert triage(path)["decision"] == "unknown"
+
+
+def test_external_script_counts_as_omitted_script():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = HtmlConverter().convert_string(
+            '<title>T</title><body><script src="app.js"></script></body>'
+        )
+    assert result.markdown == "# T"
+    assert len(caught) == 1
+
+
+@pytest.mark.parametrize("suffix", [".txt", ".log", ".md", ".html"])
+def test_triage_empty_file_is_corrupt(tmp_path, suffix):
+    path = tmp_path / ("input" + suffix)
+    path.write_bytes(b"")
+    report = triage(path)
+    assert report["coverage"]["state"] == "none"
+    assert [i["code"] for i in report["issues"]] == ["corrupt"]
