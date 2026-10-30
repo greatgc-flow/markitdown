@@ -83,9 +83,9 @@ az-doc-intel = ["azure-ai-documentintelligence", "azure-identity"]
 az-content-understanding = ["azure-ai-contentunderstanding>=1.2.0b1", "azure-identity"]
 
 [project.urls]
-Documentation = "https://github.com/greatgc-flow/markitdown#readme"
-Issues = "https://github.com/greatgc-flow/markitdown/issues"
-Source = "https://github.com/greatgc-flow/markitdown"
+Documentation = "https://github.com/greatgc-flow/markitdown-gc#readme"
+Issues = "https://github.com/greatgc-flow/markitdown-gc/issues"
+Source = "https://github.com/greatgc-flow/markitdown-gc"
 
 [tool.hatch.version]
 path = "src/markitdown/__about__.py"

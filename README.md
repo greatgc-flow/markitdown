@@ -1,6 +1,6 @@
 # MarkItDown GC
 
-> Unofficial fork of [Microsoft MarkItDown](https://github.com/microsoft/markitdown), maintained at [greatgc-flow/markitdown](https://github.com/greatgc-flow/markitdown). This fork is not affiliated with or endorsed by Microsoft.
+> Unofficial fork of [Microsoft MarkItDown](https://github.com/microsoft/markitdown), maintained at [greatgc-flow/markitdown-gc](https://github.com/greatgc-flow/markitdown-gc). This fork is not affiliated with or endorsed by Microsoft.
 > Install the `markitdown-gc` distribution. Do not install it together with upstream `markitdown` in the same environment: both provide the `markitdown` import and CLI, and the same plugin group. Use a fresh virtual environment.
 
 [![PyPI](https://img.shields.io/pypi/v/markitdown-gc.svg)](https://pypi.org/project/markitdown-gc/)
@@ -68,7 +68,7 @@ conda activate markitdown
 To install MarkItDown, use pip: `pip install 'markitdown-gc[all]'`. Alternatively, you can install it from the source:
 
 ```bash
-git clone https://github.com/greatgc-flow/markitdown.git
+git clone https://github.com/greatgc-flow/markitdown-gc.git
 cd markitdown
 pip install -e 'packages/markitdown[all]'
 ```
@@ -449,8 +449,8 @@ You can help by looking at issues or helping review PRs. We have also marked som
 
 |            | All                                                          | Especially Needs Help from Community                                                                                                      |
 | ---------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| **Issues** | [All Issues](https://github.com/greatgc-flow/markitdown/issues) | [Issues open for contribution](https://github.com/greatgc-flow/markitdown/issues?q=is%3Aissue+is%3Aopen+label%3A%22open+for+contribution%22) |
-| **PRs**    | [All PRs](https://github.com/greatgc-flow/markitdown/pulls)     | [PRs open for reviewing](https://github.com/greatgc-flow/markitdown/pulls?q=is%3Apr+is%3Aopen+label%3A%22open+for+reviewing%22)              |
+| **Issues** | [All Issues](https://github.com/greatgc-flow/markitdown-gc/issues) | [Issues open for contribution](https://github.com/greatgc-flow/markitdown-gc/issues?q=is%3Aissue+is%3Aopen+label%3A%22open+for+contribution%22) |
+| **PRs**    | [All PRs](https://github.com/greatgc-flow/markitdown-gc/pulls)     | [PRs open for reviewing](https://github.com/greatgc-flow/markitdown-gc/pulls?q=is%3Apr+is%3Aopen+label%3A%22open+for+reviewing%22)              |
 
 </div>
 
