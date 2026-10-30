@@ -2,9 +2,12 @@ import io
 import re
 import sys
 import zipfile
+import zlib
 import warnings
 from contextlib import contextmanager
 from typing import BinaryIO, Any, Iterator, Optional
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 from ._html_converter import HtmlConverter
 from .._base_converter import DocumentConverter, DocumentConverterResult
 from .._exceptions import MissingDependencyException, MISSING_DEPENDENCY_MESSAGE
@@ -36,7 +39,46 @@ ACCEPTED_XLS_MIME_TYPE_PREFIXES = [
     "application/vnd.ms-excel",
     "application/excel",
 ]
-ACCEPTED_XLS_FILE_EXTENSIONS = [".xls"]
+ACCEPTED_XLS_FILE_EXTENSIONS = [".xls", ".xlsm"]
+
+
+def _is_ooxml_workbook(file_stream: BinaryIO) -> bool:
+    """Inspect only the bounded content-types part; leave the stream untouched."""
+    position = file_stream.tell()
+    try:
+        with zipfile.ZipFile(file_stream) as archive:
+            if any(item.flag_bits & 1 for item in archive.infolist()):
+                return False
+            archive.getinfo("xl/workbook.xml")
+            content_types = archive.getinfo("[Content_Types].xml")
+            if content_types.file_size > 65536:
+                return False
+            with archive.open(content_types) as part:
+                root = ET.fromstring(part.read(65537))
+            return any(
+                item.get("PartName") == "/xl/workbook.xml"
+                and item.get("ContentType")
+                in (
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+                    "application/vnd.ms-excel.sheet.macroEnabled.main+xml",
+                )
+                for item in root.findall(
+                    "{http://schemas.openxmlformats.org/package/2006/content-types}Override"
+                )
+            )
+    except (
+        zipfile.BadZipFile,
+        zlib.error,
+        EOFError,
+        KeyError,
+        RuntimeError,
+        NotImplementedError,
+        ET.ParseError,
+        DefusedXmlException,
+    ):
+        return False
+    finally:
+        file_stream.seek(position)
 
 
 # Some producers write the legacy attribute "showZeroes" on <sheetView>, where the
@@ -252,15 +294,20 @@ class XlsConverter(DocumentConverter):
         stream_info: StreamInfo,
         **kwargs: Any,  # Options to pass to the converter
     ) -> DocumentConverterResult:
-        # Sniff only legacy .xls hints, leaving native/binary workbooks to xlrd.
-        if (stream_info.extension or "").lower() == ".xls":
+        extension = (stream_info.extension or "").lower()
+        if extension in ACCEPTED_XLS_FILE_EXTENSIONS:
             position = file_stream.tell()
             try:
                 prefix = file_stream.read(8192)
                 file_stream.seek(position)
                 text = None
                 result = None
-                if prefix.startswith((b"\xff\xfe", b"\xfe\xff", b"\xef\xbb\xbf")):
+                if prefix.startswith(b"PK\x03\x04") and _is_ooxml_workbook(file_stream):
+                    result = XlsxConverter().convert(file_stream, stream_info, **kwargs)
+                    detected = "XLSX"
+                elif extension != ".xls":
+                    pass
+                elif prefix.startswith((b"\xff\xfe", b"\xfe\xff", b"\xef\xbb\xbf")):
                     try:
                         text = strict_text(file_stream.read())
                     except (UnicodeError, ValueError):
