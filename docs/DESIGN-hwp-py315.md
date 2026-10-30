@@ -1,4 +1,4 @@
-# Design: HWP/HWPX support and Python 3.15 (fork greatgc-flow/markitdown)
+# Design: HWP/HWPX support and Python 3.15 (fork greatgc-flow/markitdown-gc)
 
 Status: round-4 backend change agreed by owner + cc + cx; TDD rework. Q-A (owner-authored HWP5 fixture) remains open.
 Principle: "so very simple" - minimal change, deliberate non-goals.
@@ -56,7 +56,7 @@ The parser's reported hang risk remains; private smoke probes use 20-second subp
    Never copy external fixtures or private content. Owner-private files remain local-only and uncommitted.
 
 ### Delivery
-- Fork-first: two focused branches/PRs on greatgc-flow/markitdown (batch, CI is slow). Local tests first.
+- Fork-first: two focused branches/PRs on greatgc-flow/markitdown-gc (batch, CI is slow). Local tests first.
 - Upstream: no competing PR; share backend portability, output, and fixture-provenance findings on #2230; 3.15 change is a separate upstream candidate.
 
 ## Acceptance tests (write first; each falsifiable)
