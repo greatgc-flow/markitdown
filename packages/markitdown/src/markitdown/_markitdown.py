@@ -796,10 +796,16 @@ class MarkItDown:
                     # Complete a split UTF-8 character at the sample boundary.
                     file_stream.seek(cur_pos)
                     stream_page = _read_charset_sample(file_stream)
-                    charset_result = charset_normalizer.from_bytes(stream_page).best()
-
-                    if charset_result is not None:
-                        charset = self._normalize_charset(charset_result.encoding)
+                    if stream_page.startswith((b"\xff\xfe", b"\xfe\xff")):
+                        charset = "utf-16"
+                    elif stream_page.startswith(b"\xef\xbb\xbf"):
+                        charset = "utf-8-sig"
+                    else:
+                        charset_result = charset_normalizer.from_bytes(
+                            stream_page
+                        ).best()
+                        if charset_result is not None:
+                            charset = self._normalize_charset(charset_result.encoding)
 
                 # Normalize the first extension listed
                 guessed_extension = None
