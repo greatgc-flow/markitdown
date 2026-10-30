@@ -22,6 +22,8 @@ What you actually get (text only, no layout fidelity):
 - XLSX/XLS/CSV: one table per sheet. XLSX image extraction is opt-in.
 - HWP/HWPX (included by default): text + pipe tables (merged cells flattened), images `[IMAGE]`, footnotes appended; HWP < 5.0 and encrypted files unsupported.
 - HTML, EPUB, RSS, IPYNB, JSON/XML/text, ZIP (recursive), MSG: text/structure.
+- Legacy .doc/.ppt/.rtf are not supported by the built-in converters; export to DOCX/PPTX or plain text first.
+For known CP949 Korean input use --charset cp949; automatic detection can silently misidentify short legacy-encoded text.
 - Image: EXIF only if `exiftool` is installed, caption only with an LLM client; otherwise empty.
 - Audio: metadata + transcript (`[audio-transcription]`, ffmpeg, network).
 `--extract-media DIR` (Python: `extract_media=DIR`) saves original DOCX/PPTX/XLSX/HWP5/HWPX images as `<sha256[:12]>.<ext>`, deduplicates bytes, and links relative to the output file (cwd for stdout; Python: `media_base_dir`). Unsafe members/collisions fail. Unsupported images get explicit omission markers. HWP5 parser payloads may be decompressed from OLE streams; no image re-encoding. Default Markdown is unchanged.
@@ -41,6 +43,7 @@ print(json.dumps(view, ensure_ascii=False))
 ```
 (jq: `jq '{decision,coverage,summary,candidates,issues}' r.json`.) decision: ocr_recommended > review > no_candidates;
 `no_candidates` is NOT "no OCR needed", and `unknown` means inspection was incomplete.
+coverage.state: complete, partial, none, or not_applicable (strictly validated .txt/.log; reason included). Markdown/HTML/XML/RTF media are not inspected: unknown/none with media_not_inspected.
 S0.5 render PDF ids (p3) to PNG (200 dpi; 300 for dense Korean); gitignore `ocr-work/`:
 ```python
 # recipe:render

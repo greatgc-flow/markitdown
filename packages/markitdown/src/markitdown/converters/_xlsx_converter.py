@@ -2,12 +2,14 @@ import io
 import re
 import sys
 import zipfile
+import warnings
 from contextlib import contextmanager
 from typing import BinaryIO, Any, Iterator, Optional
 from ._html_converter import HtmlConverter
 from .._base_converter import DocumentConverter, DocumentConverterResult
 from .._exceptions import MissingDependencyException, MISSING_DEPENDENCY_MESSAGE
 from .._stream_info import StreamInfo
+from .._text import is_html, strict_text
 
 # Try loading optional (but in this case, required) dependencies
 # Save reporting of any exceptions for later
@@ -250,6 +252,41 @@ class XlsConverter(DocumentConverter):
         stream_info: StreamInfo,
         **kwargs: Any,  # Options to pass to the converter
     ) -> DocumentConverterResult:
+        # Sniff only legacy .xls hints, leaving native/binary workbooks to xlrd.
+        if (stream_info.extension or "").lower() == ".xls":
+            position = file_stream.tell()
+            try:
+                prefix = file_stream.read(8192)
+                file_stream.seek(position)
+                text = None
+                result = None
+                if prefix.startswith((b"\xff\xfe", b"\xfe\xff", b"\xef\xbb\xbf")):
+                    try:
+                        text = strict_text(file_stream.read())
+                    except (UnicodeError, ValueError):
+                        pass
+                elif is_html(prefix.decode("ascii", errors="replace")):
+                    result = self._html_converter.convert(
+                        file_stream, stream_info, **kwargs
+                    )
+                    detected = "HTML"
+                if text is not None:
+                    detected = "HTML" if is_html(text) else "text"
+                    result = (
+                        self._html_converter.convert_string(text, **kwargs)
+                        if detected == "HTML"
+                        else DocumentConverterResult(markdown=text)
+                    )
+                if result is not None:
+                    warnings.warn(
+                        f"Spreadsheet extension does not match detected content; converted as {detected}. Verify output.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    return result
+            finally:
+                file_stream.seek(position)
+
         # Load the dependencies
         if _xls_dependency_exc_info is not None:
             raise MissingDependencyException(

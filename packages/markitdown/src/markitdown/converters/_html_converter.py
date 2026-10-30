@@ -54,7 +54,12 @@ class HtmlConverter(DocumentConverter):
         soup = BeautifulSoup(file_stream, "html.parser", from_encoding=encoding)
 
         # Remove javascript and style blocks
+        omitted_script = False
         for script in soup(["script", "style"]):
+            if script.name == "script" and (
+                script.get_text().strip() or script.get("src")
+            ):
+                omitted_script = True
             script.extract()
 
         # Print only the main content
@@ -84,6 +89,16 @@ class HtmlConverter(DocumentConverter):
 
         # remove leading and trailing \n
         webpage_text = webpage_text.strip()
+        if webpage_text == "":
+            if omitted_script:
+                warnings.warn(
+                    "HTML script content was omitted; no body text was extracted. "
+                    "JavaScript-generated content requires a separately rendered export.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if soup.title is not None and soup.title.get_text().strip():
+                webpage_text = f"# {soup.title.get_text().strip()}"
 
         return DocumentConverterResult(
             markdown=webpage_text,

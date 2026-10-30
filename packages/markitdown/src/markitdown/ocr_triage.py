@@ -8,6 +8,7 @@ import re
 import struct
 import zipfile
 from urllib.parse import unquote, urlsplit
+from ._text import strict_text
 
 MAX_BYTES = 256 * 1024**2
 MAX_PAGES = 1000
@@ -151,17 +152,50 @@ def triage(source, *, samples=False):
             elif stream.read(4) == b"PK\x03\x04":
                 _office(report, stream)
             else:
-                code = "corrupt" if size == 0 else "unsupported_format"
-                _issue(
-                    report,
-                    code,
-                    (
-                        "Empty input."
-                        if size == 0
-                        else "Supported formats: PDF, raster, DOCX, PPTX, XLSX, HWPX."
-                    ),
+                extension = (
+                    os.path.splitext(os.fsdecode(source))[1].lower() if owned else ""
                 )
-                fatal = True
+                handled = False
+                if size and extension in {
+                    ".md",
+                    ".markdown",
+                    ".html",
+                    ".htm",
+                    ".xml",
+                    ".rtf",
+                }:
+                    _issue(
+                        report,
+                        "media_not_inspected",
+                        "Embedded or linked media in this format were not inspected.",
+                    )
+                    handled = True
+                if size and extension in {".txt", ".log"}:
+                    stream.seek(0)
+                    try:
+                        text = strict_text(stream.read())
+                    except (UnicodeError, ValueError):
+                        text = None
+                    if text is not None and not text.lstrip().lower().startswith(
+                        ("<", "{\\rtf")
+                    ):
+                        report["coverage"]["state"] = "not_applicable"
+                        report["coverage"][
+                            "reason"
+                        ] = "Validated plain text has no embedded media to inspect."
+                        handled = True
+                if not handled:
+                    code = "corrupt" if size == 0 else "unsupported_format"
+                    _issue(
+                        report,
+                        code,
+                        (
+                            "Empty input."
+                            if size == 0
+                            else "Supported formats: PDF, raster, DOCX, PPTX, XLSX, HWPX."
+                        ),
+                    )
+                    fatal = True
     except Exception:
         _issue(report, "corrupt", "Input could not be read or inspected.")
         fatal = True
@@ -182,7 +216,7 @@ def triage(source, *, samples=False):
             report["decision"] = "ocr_recommended"
         elif report["summary"]["candidates_low"]:
             report["decision"] = "review"
-        elif report["coverage"]["state"] == "complete":
+        elif report["coverage"]["state"] in {"complete", "not_applicable"}:
             report["decision"] = "no_candidates"
     return report
 
