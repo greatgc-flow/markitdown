@@ -438,12 +438,31 @@ def test_no_filename_on_a_terminal_errors_instead_of_blocking(capsys) -> None:
     assert "no input" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("stdin", [None, SimpleNamespace(isatty=lambda: False)])
-def test_no_terminal_stdin_is_not_rejected_as_a_terminal(stdin) -> None:
+class _Parser:
+    def error(self, message):
+        raise SystemExit(2)
+
+
+def test_piped_stdin_is_accepted() -> None:
     from markitdown.__main__ import _require_input_or_pipe
 
-    with patch.object(sys, "stdin", stdin):
-        _require_input_or_pipe(None, SimpleNamespace(filename=None))
+    with patch.object(sys, "stdin", SimpleNamespace(isatty=lambda: False)):
+        _require_input_or_pipe(_Parser(), SimpleNamespace(filename=None))
+
+
+@pytest.mark.parametrize("stdin", [None, SimpleNamespace(isatty=lambda: True)])
+def test_missing_or_terminal_stdin_without_filename_is_rejected(stdin) -> None:
+    from markitdown.__main__ import _require_input_or_pipe
+
+    with patch.object(sys, "stdin", stdin), pytest.raises(SystemExit):
+        _require_input_or_pipe(_Parser(), SimpleNamespace(filename=None))
+
+
+def test_filename_never_needs_stdin() -> None:
+    from markitdown.__main__ import _require_input_or_pipe
+
+    with patch.object(sys, "stdin", None):
+        _require_input_or_pipe(_Parser(), SimpleNamespace(filename="a.txt"))
 
 
 def test_list_plugins_works_on_a_terminal(capsys) -> None:

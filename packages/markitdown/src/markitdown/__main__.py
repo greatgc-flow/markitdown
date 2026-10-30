@@ -18,12 +18,14 @@ from ._exceptions import (
 
 
 def _require_input_or_pipe(parser, args):
-    """Without a filename, stdin is read: refuse to block silently on a terminal."""
+    """Without a filename, stdin is read: fail fast unless it is a usable pipe/file."""
+    if args.filename is not None:
+        return
     try:
-        interactive = sys.stdin is not None and sys.stdin.isatty()
+        usable = sys.stdin is not None and not sys.stdin.isatty()
     except (AttributeError, ValueError):
-        interactive = False
-    if args.filename is None and interactive:
+        usable = False
+    if not usable:
         parser.error("no input: pass a FILENAME or pipe data on stdin (see --help)")
 
 
