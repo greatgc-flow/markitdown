@@ -460,4 +460,3 @@ def test_list_plugins_works_on_a_terminal(capsys) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
-
