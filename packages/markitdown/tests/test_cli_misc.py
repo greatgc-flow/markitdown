@@ -70,7 +70,8 @@ def test_windows_pipe_input_is_buffered_before_conversion(monkeypatch, capsys) -
             return 0
 
     stdin = SimpleNamespace(
-        buffer=WindowsPipe(b"<html><body><h1>Test HTML</h1></body></html>")
+        buffer=WindowsPipe(b"<html><body><h1>Test HTML</h1></body></html>"),
+        isatty=lambda: False,
     )
     monkeypatch.setattr(sys, "stdin", stdin)
     monkeypatch.setattr(sys, "argv", ["markitdown", "-x", "html"])
@@ -324,7 +325,7 @@ class TestCLIArgs:
         import markitdown.__main__ as markitdown_cli
 
         input_buffer = io.BytesIO(b"fake pdf")
-        stdin = MagicMock(buffer=input_buffer)
+        stdin = MagicMock(buffer=input_buffer, isatty=lambda: False)
         markitdown_instance = MagicMock()
         markitdown_instance.convert_stream.return_value.markdown = "converted"
         markitdown_cls = MagicMock(return_value=markitdown_instance)
@@ -427,3 +428,15 @@ class TestEndpointEnvVars:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
+
+
+def test_no_filename_on_a_terminal_errors_instead_of_blocking(capsys) -> None:
+    fake_stdin = SimpleNamespace(isatty=lambda: True)
+    with patch.object(sys, "argv", ["markitdown-gc"]), patch.object(
+        sys, "stdin", fake_stdin
+    ):
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+    assert exc.value.code == 2
+    assert "no input" in capsys.readouterr().err

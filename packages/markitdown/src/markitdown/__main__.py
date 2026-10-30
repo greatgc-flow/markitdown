@@ -182,6 +182,10 @@ def main():
         _print_guide(parser, args.guide)
         return
 
+    if args.filename is None and sys.stdin.isatty():
+        # Without this, a bare `markitdown-gc` on a terminal blocks silently reading stdin.
+        parser.error("no input: pass a FILENAME or pipe data on stdin (see --help)")
+
     if args.ocr_report_samples and not args.ocr_report:
         parser.error("--ocr-report-samples requires --ocr-report")
     if args.ocr_report:
