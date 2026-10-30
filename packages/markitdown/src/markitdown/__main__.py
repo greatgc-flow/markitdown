@@ -17,6 +17,16 @@ from ._exceptions import (
 )
 
 
+def _require_input_or_pipe(parser, args):
+    """Without a filename, stdin is read: refuse to block silently on a terminal."""
+    try:
+        interactive = sys.stdin is not None and sys.stdin.isatty()
+    except (AttributeError, ValueError):
+        interactive = False
+    if args.filename is None and interactive:
+        parser.error("no input: pass a FILENAME or pipe data on stdin (see --help)")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Convert various file formats to markdown.",
@@ -182,10 +192,6 @@ def main():
         _print_guide(parser, args.guide)
         return
 
-    if args.filename is None and sys.stdin.isatty():
-        # Without this, a bare `markitdown-gc` on a terminal blocks silently reading stdin.
-        parser.error("no input: pass a FILENAME or pipe data on stdin (see --help)")
-
     if args.ocr_report_samples and not args.ocr_report:
         parser.error("--ocr-report-samples requires --ocr-report")
     if args.ocr_report:
@@ -195,6 +201,7 @@ def main():
                 parser.error(
                     f"--{name.replace('_', '-')} cannot be used with --ocr-report"
                 )
+        _require_input_or_pipe(parser, args)
         try:
             _run_ocr_report(args)
         except OSError:
@@ -343,6 +350,8 @@ def main():
         markitdown = MarkItDown(enable_plugins=args.use_plugins, **cu_kwargs)
     else:
         markitdown = MarkItDown(enable_plugins=args.use_plugins)
+
+    _require_input_or_pipe(parser, args)
 
     try:
         if args.filename is None:

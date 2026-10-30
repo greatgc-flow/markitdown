@@ -426,10 +426,6 @@ class TestEndpointEnvVars:
         assert "MARKITDOWN_CU_ENDPOINT" in capsys.readouterr().err
 
 
-if __name__ == "__main__":
-    raise SystemExit(pytest.main([__file__]))
-
-
 def test_no_filename_on_a_terminal_errors_instead_of_blocking(capsys) -> None:
     fake_stdin = SimpleNamespace(isatty=lambda: True)
     with patch.object(sys, "argv", ["markitdown-gc"]), patch.object(
@@ -440,3 +436,28 @@ def test_no_filename_on_a_terminal_errors_instead_of_blocking(capsys) -> None:
 
     assert exc.value.code == 2
     assert "no input" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("stdin", [None, SimpleNamespace(isatty=lambda: False)])
+def test_no_terminal_stdin_is_not_rejected_as_a_terminal(stdin) -> None:
+    from markitdown.__main__ import _require_input_or_pipe
+
+    with patch.object(sys, "stdin", stdin):
+        _require_input_or_pipe(None, SimpleNamespace(filename=None))
+
+
+def test_list_plugins_works_on_a_terminal(capsys) -> None:
+    fake_stdin = SimpleNamespace(isatty=lambda: True)
+    with patch.object(sys, "argv", ["markitdown-gc", "--list-plugins"]), patch.object(
+        sys, "stdin", fake_stdin
+    ):
+        with pytest.raises(SystemExit) as exc:
+            main()
+
+    assert exc.value.code == 0
+    assert "Installed MarkItDown" in capsys.readouterr().out
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__]))
+
