@@ -66,7 +66,12 @@ class FileConversionException(MarkItDownException):
             if attempts is None:
                 message = "File conversion failed."
             else:
-                message = f"File conversion failed after {len(attempts)} attempts:\n"
+                message = f"File conversion failed after {len(attempts)} attempts:"
+                first = next((a for a in attempts if a.exc_info is not None), None)
+                if first is not None:
+                    cause = " ".join(str(first.exc_info[1]).splitlines())
+                    message += f" {type(first.converter).__name__}: {first.exc_info[0].__name__}: {cause}"
+                message += "\n"
                 for attempt in attempts:
                     if attempt.exc_info is None:
                         message += f" -  {type(attempt.converter).__name__} provided no execution info."

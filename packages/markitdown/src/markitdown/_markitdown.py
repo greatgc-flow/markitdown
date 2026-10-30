@@ -714,7 +714,7 @@ class MarkItDown:
 
         # Nothing can handle it!
         raise UnsupportedFormatException(
-            "Could not convert stream to Markdown. No converter attempted a conversion, suggesting that the filetype is simply not supported."
+            "Could not convert stream to Markdown. No converter attempted a conversion, suggesting that the filetype is simply not supported. See markitdown-gc --guide formats."
         )
 
     def register_page_converter(self, converter: DocumentConverter) -> None:
