@@ -17,4 +17,11 @@ jobs:
           pre-commit install --install-hooks
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: |
+          # Some formatters modify files but only report filenames on failure.
+          # Print the exact change to make the failed gate actionable; do not
+          # commit or accept the modification in CI.
+          if ! pre-commit run --all-files; then
+            git --no-pager diff -- . || true
+            exit 1
+          fi
