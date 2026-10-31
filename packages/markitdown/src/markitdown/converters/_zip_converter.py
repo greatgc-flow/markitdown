@@ -91,10 +91,9 @@ class ZipConverter(DocumentConverter):
         **kwargs: Any,  # Options to pass to the converter
     ) -> DocumentConverterResult:
         file_path = (
-            stream_info.url
-            or stream_info.local_path
-            or stream_info.filename
-            or "(unknown)"
+            "(remote archive)"
+            if stream_info.url
+            else stream_info.local_path or stream_info.filename or "(unknown)"
         )
         md_content = f"Content from the zip file `{file_path}`:\n\n"
 

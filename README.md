@@ -69,7 +69,7 @@ To install MarkItDown, use pip: `pip install 'markitdown-gc[all]'`. Alternativel
 
 ```bash
 git clone https://github.com/greatgc-flow/markitdown-gc.git
-cd markitdown
+cd markitdown-gc
 pip install -e 'packages/markitdown[all]'
 ```
 

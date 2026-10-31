@@ -181,5 +181,27 @@ def test_zip_stream_no_filename_header() -> None:
     assert "Hello world" in result.markdown
 
 
+def test_zip_source_url_secrets_are_not_rendered() -> None:
+    markitdown = MarkItDown(enable_builtins=False)
+    markitdown.register_converter(_RecordingConverter())
+    converter = ZipConverter(markitdown=markitdown)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("hello.txt", "Hello world")
+    buf.seek(0)
+
+    result = converter.convert(
+        buf,
+        StreamInfo(
+            extension=".zip",
+            url="https://user:pw@example.com/a.zip?sig=SECRET#frag",
+        ),
+    ).markdown
+
+    assert result.startswith("Content from the zip file `(remote archive)`:")
+    assert "Hello world" in result
+    assert all(secret not in result for secret in ("pw", "SECRET", "frag"))
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
