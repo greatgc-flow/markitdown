@@ -95,11 +95,12 @@ class _ZipBudget:
 
 
 class ZipConverter(DocumentConverter):
-    """Converts ZIP files to markdown by extracting and converting all contained files.
+    """Converts ZIP members in memory and combines supported Markdown output.
 
-    The converter extracts the ZIP contents to a temporary directory, processes each file
-    using appropriate converters based on file extensions, and then combines the results
-    into a single markdown document. The temporary directory is cleaned up after processing.
+    Supported files are passed to registered converters in archive order;
+    unsupported or failed members retain the legacy tolerant behavior.
+    An explicit ZipLimits policy bounds this converter's archive and member
+    resource use. No ZIP members are extracted to a temporary directory.
 
     Example output format:
     ```markdown
@@ -130,7 +131,7 @@ class ZipConverter(DocumentConverter):
     - Processes nested files recursively
     - Uses appropriate converters for each file type
     - Preserves formatting of converted content
-    - Cleans up temporary files after processing
+    - Keeps ZIP members in memory without disk extraction
     """
 
     def __init__(
