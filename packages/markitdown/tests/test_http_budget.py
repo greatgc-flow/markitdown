@@ -106,3 +106,27 @@ def test_legacy_http_call_does_not_force_new_options():
     conv, session, response = _converter([b"hello"])
     assert "hello" in conv.convert_uri(response.url).markdown
     assert session.calls == [(response.url, {"stream": True})]
+
+
+@pytest.mark.parametrize("method", ["convert_local", "convert_stream"])
+def test_http_budget_never_claimed_for_local_content(method, tmp_path):
+    conv, session, _ = _converter([b"ignored"])
+    path = tmp_path / "local.txt"
+    path.write_text("hello", encoding="utf-8")
+    if method == "convert_local":
+        call = lambda: conv.convert_local(path, http_max_bytes=5)
+    else:
+        import io
+
+        call = lambda: conv.convert_stream(io.BytesIO(b"hello"), http_max_bytes=5)
+    with pytest.raises(ValueError, match="HTTP resource limits"):
+        call()
+    assert session.calls == []
+
+
+def test_http_timeout_is_not_silently_ignored_for_existing_response():
+    conv, session, response = _converter([b"hello"])
+    with pytest.raises(ValueError, match="retroactively"):
+        conv.convert_response(response, http_timeout_seconds=10)
+    assert session.calls == []
+    assert response.read_calls == 0
