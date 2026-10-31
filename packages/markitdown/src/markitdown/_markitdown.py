@@ -411,6 +411,11 @@ class MarkItDown:
         url: Optional[str] = None,  # Deprecated -- use stream_info
         **kwargs: Any,
     ) -> DocumentConverterResult:
+        if (
+            kwargs.get("http_max_bytes") is not None
+            or kwargs.get("http_timeout_seconds") is not None
+        ):
+            raise ValueError("HTTP resource limits do not apply to local files")
         if isinstance(path, Path):
             path = str(path)
 
@@ -448,6 +453,11 @@ class MarkItDown:
         url: Optional[str] = None,  # Deprecated -- use stream_info
         **kwargs: Any,
     ) -> DocumentConverterResult:
+        if (
+            kwargs.get("http_max_bytes") is not None
+            or kwargs.get("http_timeout_seconds") is not None
+        ):
+            raise ValueError("HTTP resource limits do not apply to local streams")
         guesses: List[StreamInfo] = []
 
         # Do we have anything on which to base a guess?
@@ -592,6 +602,12 @@ class MarkItDown:
         # The observed bytes, not the untrusted Content-Length header, govern
         # admission. Direct convert_response() callers can opt in as well.
         max_bytes = kwargs.pop("http_max_bytes", None)
+        timeout_seconds = kwargs.pop("http_timeout_seconds", None)
+        if timeout_seconds is not None:
+            raise ValueError(
+                "http_timeout_seconds requires convert_uri; an already-fetched "
+                "response cannot be retroactively timed out"
+            )
         _validate_http_limits(max_bytes, None)
 
         # If there is a content-type header, get the mimetype and charset (if present)
