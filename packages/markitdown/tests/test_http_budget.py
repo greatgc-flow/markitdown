@@ -44,9 +44,7 @@ def _converter(chunks, headers=None):
 
 def test_http_budget_accepts_exact_size_and_forwards_timeout():
     conv, session, response = _converter([b"hello", b" world"])
-    result = conv.convert_uri(
-        response.url, http_max_bytes=11, http_timeout_seconds=3.5
-    )
+    result = conv.convert_uri(response.url, http_max_bytes=11, http_timeout_seconds=3.5)
     assert "hello world" in result.markdown
     assert session.calls == [(response.url, {"stream": True, "timeout": 3.5})]
     assert response.read_calls == 2
@@ -81,9 +79,7 @@ def test_http_budget_invalid_limit_rejected_before_fetch(limit):
 def test_http_timeout_invalid_value_rejected_before_fetch(value):
     conv, session, _ = _converter([b"hello"])
     with pytest.raises(ValueError, match="http_timeout_seconds"):
-        conv.convert_uri(
-            "https://example.test/doc.txt", http_timeout_seconds=value
-        )
+        conv.convert_uri("https://example.test/doc.txt", http_timeout_seconds=value)
     assert session.calls == []
 
 
