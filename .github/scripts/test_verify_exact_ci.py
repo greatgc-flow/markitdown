@@ -1,4 +1,5 @@
 """Offline contract tests for release's exact-commit CI evidence gate."""
+
 from __future__ import annotations
 
 import unittest
@@ -31,9 +32,15 @@ class TestExactReleaseCI(unittest.TestCase):
 
     def test_matrix_includes_all_core_ocr_and_mcp_lanes(self) -> None:
         self.assertEqual(len(self.jobs), 24)
-        self.assertTrue(any(n.startswith("tests (windows-11-vs2026-arm,") for n in self.jobs))
-        self.assertTrue(any(n.startswith("ocr-tests (windows-11-vs2026-arm,") for n in self.jobs))
-        self.assertTrue(any(n.startswith("mcp-tests (windows-11-vs2026-arm,") for n in self.jobs))
+        self.assertTrue(
+            any(n.startswith("tests (windows-11-vs2026-arm,") for n in self.jobs)
+        )
+        self.assertTrue(
+            any(n.startswith("ocr-tests (windows-11-vs2026-arm,") for n in self.jobs)
+        )
+        self.assertTrue(
+            any(n.startswith("mcp-tests (windows-11-vs2026-arm,") for n in self.jobs)
+        )
 
     def test_exact_successful_main_push_is_accepted(self) -> None:
         validate_run(self._run(), self._jobs(), "a" * 40, self.jobs)
@@ -58,14 +65,19 @@ class TestExactReleaseCI(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "coverage mismatch"):
             validate_run(
                 self._run(),
-                self._jobs() + [{"name": "unlisted", "status": "completed", "conclusion": "success"}],
+                self._jobs()
+                + [
+                    {"name": "unlisted", "status": "completed", "conclusion": "success"}
+                ],
                 "a" * 40,
                 self.jobs,
             )
 
     def test_duplicate_and_skipped_or_failed_jobs_are_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "duplicate"):
-            validate_run(self._run(), self._jobs() + self._jobs()[:1], "a" * 40, self.jobs)
+            validate_run(
+                self._run(), self._jobs() + self._jobs()[:1], "a" * 40, self.jobs
+            )
         for bad in ("failure", "cancelled", "skipped", None):
             with self.subTest(result=bad):
                 jobs = self._jobs()
