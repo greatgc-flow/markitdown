@@ -108,8 +108,8 @@ def _preflight_central_directory(file_stream: BinaryIO, budget: _ZipBudget) -> N
         if eocd is None:
             raise zipfile.BadZipFile("ZIP end-of-central-directory missing")
 
-        _, disk, cd_disk, disk_count, count, cd_size, cd_offset, _ = (
-            struct.unpack_from("<4s4H2IH", tail, eocd)
+        _, disk, cd_disk, disk_count, count, cd_size, cd_offset, _ = struct.unpack_from(
+            "<4s4H2IH", tail, eocd
         )
         if disk or cd_disk or disk_count != count:
             raise ResourceLimitException("split ZIP archives are unsupported")
@@ -131,7 +131,9 @@ def _preflight_central_directory(file_stream: BinaryIO, budget: _ZipBudget) -> N
         expanded_total = budget.total_bytes
         while file_stream.tell() < cd_end:
             if seen >= count:
-                raise ResourceLimitException("ZIP central directory entry count mismatch")
+                raise ResourceLimitException(
+                    "ZIP central directory entry count mismatch"
+                )
             header = file_stream.read(46)
             if len(header) != 46 or header[:4] != b"PK\x01\x02":
                 raise zipfile.BadZipFile("invalid ZIP central directory record")
