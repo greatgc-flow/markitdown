@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from starlette.applications import Starlette
 from markitdown import MarkItDown, FileConversionException, UnsupportedFormatException
+from markitdown._exceptions import ResourceLimitException
 import requests
 import uvicorn
 
@@ -34,6 +35,8 @@ async def convert_to_markdown(uri: str) -> str:
         ) from exc
     except requests.exceptions.RequestException as exc:
         raise ToolError("Could not fetch the resource.") from exc
+    except ResourceLimitException as exc:
+        raise ToolError("Input resource limit exceeded.") from exc
     except FileConversionException as exc:
         raise ToolError("File conversion failed.") from exc
     except OSError as exc:
