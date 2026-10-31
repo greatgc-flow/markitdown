@@ -63,9 +63,7 @@ def test_convert_uri_always_closes_owned_http_response(
             converter.convert_uri(response.url)
 
     assert response.close_calls == 1
-    assert session.calls == [
-        (response.url, {"stream": True, "timeout": (10.0, 30.0)})
-    ]
+    assert session.calls == [(response.url, {"stream": True, "timeout": (10.0, 30.0)})]
 
 
 def test_direct_convert_response_remains_caller_owned():
@@ -97,9 +95,7 @@ def test_http_response_budget_rejects_oversize_and_closes_owned_response():
     response = FakeResponse(chunks=[b"first", b"abcdefghij"])
     session = FakeSession(response)
     with pytest.raises(ResourceLimitException, match="HTTP response byte"):
-        MarkItDown(requests_session=session).convert_uri(
-            response.url, http_max_bytes=8
-        )
+        MarkItDown(requests_session=session).convert_uri(response.url, http_max_bytes=8)
     assert response.close_calls == 1
 
 
@@ -123,9 +119,7 @@ def test_http_rejects_invalid_timeout_before_network(bad):
     response = FakeResponse()
     session = FakeSession(response)
     with pytest.raises(ValueError, match="http_timeout"):
-        MarkItDown(requests_session=session).convert_uri(
-            response.url, http_timeout=bad
-        )
+        MarkItDown(requests_session=session).convert_uri(response.url, http_timeout=bad)
     assert session.calls == []
 
 
