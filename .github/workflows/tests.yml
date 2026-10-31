@@ -7,6 +7,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # One latest candidate per pull request and workflow.
+  # Dispatch and main push runs use their unique run ID and are never cancelled.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Preserve Unicode in captured CLI output on Windows.
   PYTHONUTF8: "1"

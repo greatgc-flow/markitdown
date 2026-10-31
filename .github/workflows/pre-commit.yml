@@ -1,6 +1,12 @@
 name: pre-commit
 on: [pull_request]
 
+concurrency:
+  # One latest candidate per pull request and workflow.
+  # Dispatch and main push runs use their unique run ID and are never cancelled.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
@@ -17,4 +23,9 @@ jobs:
           pre-commit install --install-hooks
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: |
+          # Surface exact formatter changes while retaining the failing gate.
+          if ! pre-commit run --all-files; then
+            git --no-pager diff -- . || true
+            exit 1
+          fi
