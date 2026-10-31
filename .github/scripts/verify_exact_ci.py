@@ -2,6 +2,7 @@
 
 This script only reads the GitHub API. No release, tag or package operations.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -72,7 +73,9 @@ def validate_run(
             + " extra="
             + repr(sorted(set(observed) - expected))
         )
-    if any(j.get("status") != "completed" or j.get("conclusion") != "success" for j in jobs):
+    if any(
+        j.get("status") != "completed" or j.get("conclusion") != "success" for j in jobs
+    ):
         raise ValueError("CI contains incomplete, skipped, cancelled or failed job")
 
 
@@ -98,9 +101,7 @@ def verify(repo: str, sha: str, token: str, workflow: Path) -> dict[str, Any]:
     if not token:
         raise ValueError("GitHub actions-read token required")
     expected = expected_jobs(workflow)
-    query = urllib.parse.urlencode(
-        {"event": "push", "head_sha": sha, "per_page": 100}
-    )
+    query = urllib.parse.urlencode({"event": "push", "head_sha": sha, "per_page": 100})
     data = _request_json(repo, "actions/workflows/tests.yml/runs?" + query, token)
     if data.get("total_count", 0) > 100:
         raise ValueError("too many source runs to verify exhaustively")
@@ -154,7 +155,9 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        proof = verify(args.repo, args.sha, os.environ.get("GH_TOKEN", ""), args.workflow)
+        proof = verify(
+            args.repo, args.sha, os.environ.get("GH_TOKEN", ""), args.workflow
+        )
     except (OSError, ValueError, KeyError, TypeError, yaml.YAMLError) as exc:
         print(f"HOLD: exact source CI verification failed: {exc}", file=sys.stderr)
         return 1
