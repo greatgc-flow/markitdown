@@ -33,6 +33,7 @@ class ZipLimits:
     """
 
     max_entries: int = 1024
+    max_archive_bytes: int = 64 * 1024 * 1024
     max_member_bytes: int = 16 * 1024 * 1024
     max_total_uncompressed_bytes: int = 64 * 1024 * 1024
     max_depth: int = 3
@@ -41,6 +42,7 @@ class ZipLimits:
     def __post_init__(self) -> None:
         for name in (
             "max_entries",
+            "max_archive_bytes",
             "max_member_bytes",
             "max_total_uncompressed_bytes",
             "max_depth",
@@ -184,6 +186,14 @@ class ZipConverter(DocumentConverter):
         depth = kwargs.get("_zip_depth", 0) + 1
         if budget is not None:
             budget.check_depth(depth)
+            # ZipFile constructs its central-directory index eagerly. Bound
+            # the compressed archive bytes before invoking that parser.
+            start = file_stream.tell()
+            file_stream.seek(0, 2)
+            archive_size = file_stream.tell() - start
+            file_stream.seek(start)
+            if archive_size > budget.limits.max_archive_bytes:
+                raise ZipLimitExceeded("ZIP input archive byte limit exceeded")
 
         # Drop the metadata describing the outer *archive*
         member_kwargs = {
