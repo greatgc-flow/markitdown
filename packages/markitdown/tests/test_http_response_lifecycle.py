@@ -158,7 +158,6 @@ def test_non_seekable_stream_budget_rejects_invalid_options(bad):
         )
 
 
-
 def _zip_http_response(names):
     import io
     import zipfile
