@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 WORKFLOWS = Path(__file__).resolve().parents[3] / ".github" / "workflows"
 EXPECTED_GROUP = (
     "  group: ${{ github.workflow }}-"
