@@ -313,12 +313,30 @@ def _patch_eocd_counts(stream: io.BytesIO, count: int) -> io.BytesIO:
     return io.BytesIO(data)
 
 
-def test_zip_preflight_accepts_empty_archive_and_embedded_signature_comment():
+def test_zip_preflight_accepts_empty_archive_with_comment():
+    empty = io.BytesIO()
+    with zipfile.ZipFile(empty, "w") as archive:
+        archive.comment = b"Ordinary ZIP comment"
+    empty.seek(0)
+    assert "Content from the zip file" in _zip_markdown(empty, zip_max_entries=1)
+
+
+def test_zip_preflight_identifies_true_eocd_when_comment_embeds_signature():
+    from markitdown.converters._zip_converter import (
+        _ZipBudget,
+        _preflight_central_directory,
+    )
+
     empty = io.BytesIO()
     with zipfile.ZipFile(empty, "w") as archive:
         archive.comment = b"Fake PK" + bytes((5, 6)) + b" in a comment"
     empty.seek(0)
-    assert "Content from the zip file" in _zip_markdown(empty, zip_max_entries=1)
+
+    # The bounded preflight resolves the true EOCD. CPython's standard
+    # ZipFile parser itself can reject this unusual but legal comment,
+    # so do not mistake that upstream behavior for our preflight result.
+    _preflight_central_directory(empty, _ZipBudget.configure({}))
+    assert empty.tell() == 0
 
 
 def test_zip_preflight_supports_prefixed_zip_with_comment():
