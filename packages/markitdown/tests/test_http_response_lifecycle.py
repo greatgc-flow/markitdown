@@ -156,3 +156,43 @@ def test_non_seekable_stream_budget_rejects_invalid_options(bad):
         MarkItDown().convert_stream(
             NonSeekableBytes(b"hi"), file_extension=".txt", stream_max_bytes=bad
         )
+
+
+
+def _zip_http_response(names):
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name in names:
+            archive.writestr(name, b"fixture hello")
+    response = FakeResponse(chunks=[buffer.getvalue()])
+    response.url = "https://example.invalid/archive.zip"
+    response.headers = {"content-type": "application/zip"}
+    return response
+
+
+def test_http_to_zip_path_accepts_both_budgets_and_closes_response():
+    response = _zip_http_response(["note.txt"])
+    result = MarkItDown(requests_session=FakeSession(response)).convert_uri(
+        response.url,
+        http_max_bytes=4096,
+        zip_max_entries=1,
+        zip_max_directory_bytes=256,
+    )
+    assert "fixture hello" in result.markdown
+    assert response.close_calls == 1
+
+
+def test_http_to_zip_preflight_rejects_entries_and_closes_response():
+    response = _zip_http_response(["note.txt", "other.txt"])
+    converter = MarkItDown(requests_session=FakeSession(response))
+    with pytest.raises(ResourceLimitException, match="ZIP entries"):
+        converter.convert_uri(
+            response.url,
+            http_max_bytes=4096,
+            zip_max_entries=1,
+            zip_max_directory_bytes=256,
+        )
+    assert response.close_calls == 1
