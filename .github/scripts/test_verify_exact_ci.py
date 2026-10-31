@@ -88,7 +88,6 @@ class TestExactReleaseCI(unittest.TestCase):
                     validate_run(self._run(), jobs, "a" * 40, self.jobs)
 
 
-
 class TestPinnedReleaseActions(unittest.TestCase):
     """Release job dependencies must be immutable, including OIDC publisher."""
 
@@ -115,15 +114,12 @@ class TestPinnedReleaseActions(unittest.TestCase):
         release_job = self.release["publish"]
         self.assertEqual(
             release_job["steps"][-1]["uses"],
-            "pypa/gh-action-pypi-publish@"
-            "7245906fb61fa33a13554f9d5fb856fe61758086",
+            "pypa/gh-action-pypi-publish@" "7245906fb61fa33a13554f9d5fb856fe61758086",
         )
         self.assertEqual(release_job["environment"], "pypi")
         self.assertEqual(release_job["permissions"].get("id-token"), "write")
         self.assertEqual(release_job["needs"], "build")
         self.assertEqual(self.release["build"]["needs"], "verify-source-ci")
-
-
 
 
 if __name__ == "__main__":
