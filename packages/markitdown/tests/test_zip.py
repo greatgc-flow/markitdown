@@ -186,7 +186,6 @@ def test_zip_stream_no_filename_header() -> None:
 
 # Bounded ZIP conversion is an explicitly selected API policy. These tests
 # use local, deterministic in-memory archives; no provider/network calls.
-
 def _archive_bytes(**entries: bytes) -> io.BytesIO:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -246,7 +245,8 @@ def test_zip_limits_reject_compressed_archive_before_open():
     archive = _archive_bytes(**{"data.txt": b"hello"})
     with pytest.raises(ZipLimitExceeded, match="archive"):
         _convert_bounded(
-            archive, ZipLimits(max_archive_bytes=len(archive.getvalue()) - 1)
+            archive,
+            ZipLimits(max_archive_bytes=len(archive.getvalue()) - 1),
         )
 
 
