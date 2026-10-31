@@ -94,3 +94,28 @@ External programs (NOT installed by pip; optional, install only when needed; che
 - Audio transcription uses Google's free web speech endpoint with a shared key: the audio leaves the machine (not for sensitive recordings), it can be rate-limited or revoked at any time (testing/personal use), default language en-US.
   Korean: Python API only, `MarkItDown().convert("a.mp3", language="ko-KR")`; the CLI has no language option.
 - OCR (`--guide ocr`) needs none of these.
+
+
+## bounded ZIP API (optional)
+
+Trusted local conversions retain their existing behavior when `zip_limits` is omitted.
+For ZIP input from untrusted sources, use explicit per-conversion limits:
+
+```python
+from markitdown import MarkItDown, ZipLimits, ZipLimitExceeded
+
+limits = ZipLimits(max_entries=200, max_member_bytes=8 * 1024 * 1024,
+                   max_total_uncompressed_bytes=32 * 1024 * 1024,
+                   max_depth=2, max_output_chars=4 * 1024 * 1024)
+try:
+    result = MarkItDown().convert("archive.zip", zip_limits=limits)
+except ZipLimitExceeded:
+    # Not a success; reject or quarantine the source, do not use partial content
+    raise
+```
+
+Limits apply to each ZIP member, nested archives and final Markdown output.
+No source extraction to disk is performed. A ZIP may still contain unsupported
+files which the legacy converter skips; do **not** mistake successful Markdown
+generation for full fidelity. Structured completeness reports and limits on
+non-ZIP PDF/HTTP inputs remain separate follow-up work.
