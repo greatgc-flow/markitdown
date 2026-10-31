@@ -71,6 +71,50 @@ def _get_content_disposition_filename(content_disposition: str) -> Optional[str]
     return extended_filename or fallback_filename
 
 
+_DEFAULT_INPUT_BYTES = 128 * 1024 * 1024
+_DEFAULT_HTTP_TIMEOUT = (10.0, 30.0)  # connect, idle read (not total deadline)
+
+
+def _positive_byte_limit(value: Any, option: str) -> int:
+    """Validate explicit per-request buffers; bool is not an integer budget."""
+    if type(value) is not int or value <= 0:
+        raise ResourceLimitException(f"{option} must be a positive integer")
+    return value
+
+
+def _http_timeout(value: Any) -> Any:
+    """Requests timeout: positive finite seconds or (connect, idle-read)."""
+    is_tuple = isinstance(value, tuple)
+    items = value if is_tuple else (value,)
+    if (is_tuple and len(items) != 2) or (not is_tuple and len(items) != 1):
+        raise ValueError("http_timeout must be positive seconds or a two-item tuple")
+    for item in items:
+        if (
+            type(item) not in (int, float)
+            or item <= 0
+            or item != item
+            or item == float("inf")
+        ):
+            raise ValueError("http_timeout must contain positive finite seconds")
+    return value
+
+
+def _buffer_bounded(stream: BinaryIO, limit: int, label: str) -> io.BytesIO:
+    """Read a non-seekable source in chunks; abort after at most limit+1 bytes."""
+    buffer = io.BytesIO()
+    remaining = limit
+    while True:
+        chunk = stream.read(min(65536, remaining + 1))
+        if not chunk:
+            break
+        remaining -= len(chunk)
+        if remaining < 0:
+            raise ResourceLimitException(f"{label} byte limit exceeded")
+        buffer.write(chunk)
+    buffer.seek(0)
+    return buffer
+
+
 def _read_charset_sample(file_stream: BinaryIO) -> bytes:
     """Read a 64 KiB sample, completing a trailing split UTF-8 character."""
     sample = file_stream.read(65536)
@@ -453,10 +497,14 @@ class MarkItDown:
 
         # Check if we have a seekable stream. If not, load the entire stream into memory.
         if not stream.seekable():
-            buffer = io.BytesIO()
-            shutil.copyfileobj(stream, buffer)
-            buffer.seek(0)
-            stream = buffer
+            stream = _buffer_bounded(
+                stream,
+                _positive_byte_limit(
+                    kwargs.get("stream_max_bytes", _DEFAULT_INPUT_BYTES),
+                    "stream_max_bytes",
+                ),
+                "non-seekable stream",
+            )
 
         # Add guesses based on stream content
         guesses = self._get_stream_info_guesses(
@@ -531,7 +579,9 @@ class MarkItDown:
             )
         # HTTP/HTTPS URIs
         elif scheme in ("http", "https"):
-            response = self._requests_session.get(uri, stream=True)
+            # Requests' read timeout is an idle timeout, not a wall-clock cap.
+            timeout = _http_timeout(kwargs.pop("http_timeout", _DEFAULT_HTTP_TIMEOUT))
+            response = self._requests_session.get(uri, stream=True, timeout=timeout)
             try:
                 response.raise_for_status()
                 return self.convert_response(
@@ -613,8 +663,18 @@ class MarkItDown:
             base_guess = base_guess.copy_and_update(url=url)
 
         # Read into BytesIO
+        limit = _positive_byte_limit(
+            kwargs.get("http_max_bytes", _DEFAULT_INPUT_BYTES),
+            "http_max_bytes",
+        )
         buffer = io.BytesIO()
+        remaining = limit
         for chunk in response.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            remaining -= len(chunk)
+            if remaining < 0:
+                raise ResourceLimitException("HTTP response byte limit exceeded")
             buffer.write(chunk)
         buffer.seek(0)
 
