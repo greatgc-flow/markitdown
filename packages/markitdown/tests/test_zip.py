@@ -288,3 +288,45 @@ def test_zip_limits_reject_invalid_policy_object():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
+
+
+class _NonSeekableZipInput(io.BytesIO):
+    """HTTP/pipeline-like source with no read/rewind capability."""
+
+    def seekable(self):
+        return False
+
+    def seek(self, *args, **kwargs):
+        raise AssertionError("source must never be rewound")
+
+
+def test_zip_limits_prevent_unbounded_copy_of_nonseekable_input():
+    archive = _archive_bytes(**{"notes.txt": b"hello" * 1000})
+    source = _NonSeekableZipInput(archive.getvalue() + b"extra" * 1000)
+    cap = 256
+    with pytest.raises(ZipLimitExceeded, match="before buffering"):
+        MarkItDown().convert_stream(
+            source,
+            stream_info=StreamInfo(extension=".zip"),
+            zip_limits=ZipLimits(max_archive_bytes=cap),
+        )
+    # Never consume the entire stream before noticing the configured budget.
+    assert source.tell() <= cap + 1
+
+
+def test_zip_limits_allow_valid_nonseekable_input():
+    archive = _archive_bytes(**{"notes.txt": b"hello"})
+    source = _NonSeekableZipInput(archive.getvalue())
+    result = MarkItDown().convert_stream(
+        source, stream_info=StreamInfo(extension=".zip"), zip_limits=ZipLimits()
+    )
+    assert "hello" in result.markdown
+
+
+def test_nonseekable_invalid_zip_policy_fails_before_any_read():
+    source = _NonSeekableZipInput(b"x" * 5000)
+    with pytest.raises(TypeError, match="ZipLimits"):
+        MarkItDown().convert_stream(
+            source, stream_info=StreamInfo(extension=".zip"), zip_limits={}
+        )
+    assert source.tell() == 0

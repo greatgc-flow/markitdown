@@ -49,8 +49,8 @@ except ZipLimitExceeded:
     raise
 ```
 
-Limits apply to the compressed ZIP input before parsing, each ZIP member, nested
-archives and final Markdown output. The limit does not constrain HTTP fetches
+Limits apply to compressed ZIP input before parsing (including non-seekable
+stream buffering), each ZIP member, nested archives and final Markdown output. The limit does not constrain HTTP fetches
 or PDF processing before ZIP selection.
 No source extraction to disk is performed. A ZIP may still contain unsupported
 files which the legacy converter skips; do **not** mistake successful Markdown

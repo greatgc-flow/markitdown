@@ -483,7 +483,27 @@ class MarkItDown:
         # Check if we have a seekable stream. If not, load the entire stream into memory.
         if not stream.seekable():
             buffer = io.BytesIO()
-            shutil.copyfileobj(stream, buffer)
+            limits = kwargs.get("zip_limits")
+            if limits is not None:
+                # Otherwise copyfileobj would read an unseekable ZIP fully
+                # into memory *before* ZipConverter could enforce its budget.
+                from .converters._zip_converter import ZipLimits
+
+                if not isinstance(limits, ZipLimits):
+                    raise TypeError("zip_limits must be a ZipLimits instance")
+                remaining = limits.max_archive_bytes
+                while True:
+                    chunk = stream.read(min(65536, remaining + 1))
+                    if not chunk:
+                        break
+                    if len(chunk) > remaining:
+                        raise ZipLimitExceeded(
+                            "ZIP input archive byte limit exceeded before buffering"
+                        )
+                    buffer.write(chunk)
+                    remaining -= len(chunk)
+            else:
+                shutil.copyfileobj(stream, buffer)
             buffer.seek(0)
             stream = buffer
 
