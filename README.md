@@ -487,6 +487,39 @@ MarkItDown performs I/O with the privileges of the current process. Like `open()
 
 **Call only the conversion method you need:** Prefer the narrowest conversion API that fits your use case. MarkItDown's `convert()` method is intentionally permissive and can handle local files, remote URIs, and byte streams. If your application only needs to read local files, call `convert_local()` instead. If you need more control over URI fetching, call `requests.get()` yourself and pass the response object to `convert_response()`. For maximum control, open a stream to the input you want converted and call `convert_stream()`.
 
+#### Resource budgets (proposed in PRs #41 and #43)
+
+Built-in ZIP and HTTP/stream conversion apply bounded input policies. All values below are defaults, not guarantees about total CPU time, overall process memory, or access permissions.
+
+| Input | Default limit | Optional Python keyword |
+| --- | --- | --- |
+| ZIP entries | 10,000 across nested ZIPs | `zip_max_entries` |
+| Expanded ZIP member | 128 MiB | `zip_max_member_bytes` |
+| Total expanded ZIP member bytes | 512 MiB, shared across nested ZIPs | `zip_max_total_bytes` |
+| ZIP nesting depth | 4 | `zip_max_depth` |
+| ZIP Markdown output | 32 million characters per containing archive | `zip_max_output_chars` |
+| HTTP streamed response | 128 MiB | `http_max_bytes` |
+| Non-seekable binary stream | 128 MiB | `stream_max_bytes` |
+| HTTP connect / idle read | 10 / 30 seconds | `http_timeout` |
+
+To process a known document with a smaller budget:
+
+```python
+from markitdown import MarkItDown
+
+converter = MarkItDown()
+result = converter.convert_uri(
+    "https://example.org/report.pdf",
+    http_max_bytes=16 * 1024 * 1024,
+    http_timeout=(5, 15),
+)
+print(result.markdown)
+```
+
+For a trusted local ZIP input, pass `zip_max_entries=100` and `zip_max_depth=2` to `convert_local()`; for pipes, pass `stream_max_bytes=16 * 1024 * 1024` to `convert_stream()`. All explicit size/count limits must be positive integers. A hard limit causes a `ResourceLimitException` rather than silently returning partial success. Keep policy overrides explicit and as small as your workload permits.
+
+These input caps **do not** sanitize network destinations or local filesystem paths; limit access at the caller/OS boundary. The HTTP read timeout is an *idle* timeout, not a total conversion deadline. Arbitrary seekable local files, ZIP central-directory allocation, and converter CPU/output outside ZIP require their own controls.
+
 ## Trademarks
 
 This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
