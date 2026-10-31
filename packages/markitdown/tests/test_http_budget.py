@@ -2,7 +2,12 @@
 
 import pytest
 
-from markitdown import HTTPResponseLimitExceeded, MarkItDown
+from markitdown import (
+    HTTPResponseLimitExceeded,
+    MarkItDown,
+    ZipLimitExceeded,
+    ZipLimits,
+)
 
 
 class _FakeResponse:
@@ -126,3 +131,49 @@ def test_http_timeout_is_not_silently_ignored_for_existing_response():
         conv.convert_response(response, http_timeout_seconds=10)
     assert session.calls == []
     assert response.read_calls == 0
+
+
+def _zip_over_http():
+    """Generate one ZIP response without performing any external request."""
+    import io
+    import zipfile
+
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as writer:
+        writer.writestr("notes.txt", b"hello")
+    payload = archive.getvalue()
+    conv, session, response = _converter(
+        [payload], headers={"content-type": "application/zip"}
+    )
+    response.url = "https://example.test/notes.zip"
+    return conv, session, response, payload
+
+
+def test_http_then_zip_rejects_http_budget_before_archive_parsing():
+    conv, session, response, payload = _zip_over_http()
+    with pytest.raises(HTTPResponseLimitExceeded):
+        conv.convert_uri(
+            response.url, http_max_bytes=len(payload) - 1,
+            zip_limits=ZipLimits(max_member_bytes=4),
+        )
+    assert response.closed
+    assert session.calls == [(response.url, {"stream": True})]
+
+
+def test_http_then_zip_rejects_zip_budget_after_accepted_download():
+    conv, _, response, payload = _zip_over_http()
+    with pytest.raises(ZipLimitExceeded, match="member"):
+        conv.convert_uri(
+            response.url, http_max_bytes=len(payload),
+            zip_limits=ZipLimits(max_member_bytes=4),
+        )
+    assert response.closed
+
+
+def test_http_then_zip_accepts_both_budgets():
+    conv, _, response, payload = _zip_over_http()
+    result = conv.convert_uri(
+        response.url, http_max_bytes=len(payload), zip_limits=ZipLimits()
+    )
+    assert "## File: notes.txt" in result.markdown
+    assert "hello" in result.markdown

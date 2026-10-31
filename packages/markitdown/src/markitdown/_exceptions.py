@@ -95,3 +95,9 @@ class HTTPResponseLimitExceeded(MarkItDownException):
     """
 
     pass
+
+
+class ZipLimitExceeded(MarkItDownException):
+    """Opt-in ZIP resource budget exceeded; must not fall back to another converter."""
+
+    pass

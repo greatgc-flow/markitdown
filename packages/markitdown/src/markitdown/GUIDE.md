@@ -30,6 +30,33 @@ For known CP949 Korean input use --charset cp949; automatic detection can silent
 `convert()` also fetches http(s)://, file://, data: URIs: never pass untrusted input as the source.
 
 
+### bounded ZIP API (optional)
+
+Trusted local conversions retain their existing behavior when `zip_limits` is omitted.
+For ZIP input from untrusted sources, use explicit per-conversion limits:
+
+```python
+from markitdown import MarkItDown, ZipLimits, ZipLimitExceeded
+
+limits = ZipLimits(max_entries=200, max_archive_bytes=32 * 1024 * 1024,
+                   max_member_bytes=8 * 1024 * 1024,
+                   max_total_uncompressed_bytes=32 * 1024 * 1024,
+                   max_depth=2, max_output_chars=4 * 1024 * 1024)
+try:
+    result = MarkItDown().convert("archive.zip", zip_limits=limits)
+except ZipLimitExceeded:
+    # Not a success; reject or quarantine the source, do not use partial content
+    raise
+```
+
+Limits apply to the compressed ZIP input before parsing, each ZIP member, nested
+archives and final Markdown output. The limit does not constrain HTTP fetches
+or PDF processing before ZIP selection.
+No source extraction to disk is performed. A ZIP may still contain unsupported
+files which the legacy converter skips; do **not** mistake successful Markdown
+generation for full fidelity. Structured completeness reports and limits on
+non-ZIP PDF/HTTP inputs remain separate follow-up work.
+
 ### Optional bounded HTTP conversion (Python API)
 
 When converting remote HTTP/HTTPS documents in unattended workflows, bound the
@@ -58,9 +85,8 @@ supports `http_max_bytes` when a caller supplies an already-fetched response.
 This is **not** an SSRF defense or a full untrusted-input sandbox. Remote URLs
 can still reach internal networks/redirects using the process's credentials;
 restrict reachable destinations and proxy policy separately. A request
-timeout does not provide a total end-to-end conversion deadline. PDF/ZIP
-decompression, CPU usage, strict completeness reporting and MCP defaults
-remain separate follow-up work.
+timeout does not provide a total end-to-end conversion deadline. ZIP sources require separate `zip_limits` opt-in. PDF processing, CPU usage,
+strict completeness reporting and MCP defaults remain separate follow-up work.
 
 ## ocr
 markitdown never OCRs. It reports where OCR is needed; peers (cc/cx via peerhub) transcribe. Pages/images leave the machine: sensitive

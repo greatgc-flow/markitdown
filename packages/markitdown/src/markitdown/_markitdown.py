@@ -52,6 +52,7 @@ from ._exceptions import (
     UnsupportedFormatException,
     FailedConversionAttempt,
     HTTPResponseLimitExceeded,
+    ZipLimitExceeded,
 )
 
 
@@ -580,7 +581,7 @@ class MarkItDown:
                     url=mock_url,
                     **kwargs,
                 )
-            except HTTPResponseLimitExceeded:
+            except (HTTPResponseLimitExceeded, ZipLimitExceeded):
                 # A rejected streaming response must not keep its socket open.
                 response.close()
                 raise
@@ -755,6 +756,10 @@ class MarkItDown:
                 if _accepts:
                     try:
                         res = converter.convert(file_stream, stream_info, **_kwargs)
+                    except ZipLimitExceeded:
+                        # An explicit archive policy is a hard gate, not a
+                        # converter error eligible for fallback or partial data.
+                        raise
                     except Exception:
                         failed_attempts.append(
                             FailedConversionAttempt(
