@@ -16,6 +16,7 @@ from ._exceptions import (
     FailedConversionAttempt,
     FileConversionException,
     UnsupportedFormatException,
+    HTTPResponseLimitExceeded,
 )
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "FailedConversionAttempt",
     "FileConversionException",
     "UnsupportedFormatException",
+    "HTTPResponseLimitExceeded",
     "StreamInfo",
     "PRIORITY_SPECIFIC_FILE_FORMAT",
     "PRIORITY_GENERIC_FILE_FORMAT",
