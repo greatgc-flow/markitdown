@@ -153,7 +153,8 @@ def test_http_then_zip_rejects_http_budget_before_archive_parsing():
     conv, session, response, payload = _zip_over_http()
     with pytest.raises(HTTPResponseLimitExceeded):
         conv.convert_uri(
-            response.url, http_max_bytes=len(payload) - 1,
+            response.url,
+            http_max_bytes=len(payload) - 1,
             zip_limits=ZipLimits(max_member_bytes=4),
         )
     assert response.closed
@@ -164,7 +165,8 @@ def test_http_then_zip_rejects_zip_budget_after_accepted_download():
     conv, _, response, payload = _zip_over_http()
     with pytest.raises(ZipLimitExceeded, match="member"):
         conv.convert_uri(
-            response.url, http_max_bytes=len(payload),
+            response.url,
+            http_max_bytes=len(payload),
             zip_limits=ZipLimits(max_member_bytes=4),
         )
     assert response.closed

@@ -30,63 +30,27 @@ For known CP949 Korean input use --charset cp949; automatic detection can silent
 `convert()` also fetches http(s)://, file://, data: URIs: never pass untrusted input as the source.
 
 
-### bounded ZIP API (optional)
+### Bounded HTTP and ZIP input (opt-in Python API)
 
-Trusted local conversions retain their existing behavior when `zip_limits` is omitted.
-For ZIP input from untrusted sources, use explicit per-conversion limits:
-
-```python
-from markitdown import MarkItDown, ZipLimits, ZipLimitExceeded
-
-limits = ZipLimits(max_entries=200, max_archive_bytes=32 * 1024 * 1024,
-                   max_member_bytes=8 * 1024 * 1024,
-                   max_total_uncompressed_bytes=32 * 1024 * 1024,
-                   max_depth=2, max_output_chars=4 * 1024 * 1024)
-try:
-    result = MarkItDown().convert("archive.zip", zip_limits=limits)
-except ZipLimitExceeded:
-    # Not a success; reject or quarantine the source, do not use partial content
-    raise
-```
-
-Limits apply to compressed ZIP input before parsing (including non-seekable
-stream buffering), each ZIP member, nested archives and final Markdown output. The limit does not constrain HTTP fetches
-or PDF processing before ZIP selection.
-No source extraction to disk is performed. A ZIP may still contain unsupported
-files which the legacy converter skips; do **not** mistake successful Markdown
-generation for full fidelity. Structured completeness reports and limits on
-non-ZIP PDF/HTTP inputs remain separate follow-up work.
-
-### Optional bounded HTTP conversion (Python API)
-
-When converting remote HTTP/HTTPS documents in unattended workflows, bound the
-response bytes and specify a network timeout rather than permitting an unlimited
-in-memory buffer:
+For untrusted ZIP data, pass `zip_limits=ZipLimits()`; it caps compressed
+input, nested/member decompression, entry count, depth and Markdown output.
+Non-seekable ZIP input is capped *before* the in-memory copy. For HTTP URLs,
+pass `http_max_bytes` and `http_timeout_seconds` to `convert_uri`.
+Limits are independent; both are required for an HTTP-hosted ZIP.
 
 ```python
-from markitdown import MarkItDown, HTTPResponseLimitExceeded
-
-try:
-    result = MarkItDown().convert_uri(
-        "https://example.test/document.txt",
-        http_max_bytes=16 * 1024 * 1024,
-        http_timeout_seconds=30,
-    )
-except HTTPResponseLimitExceeded:
-    raise  # Reject as incomplete; no partial markdown is returned
+from markitdown import MarkItDown, ZipLimits
+md = MarkItDown()
+result = md.convert_uri("https://example.test/a.zip",
+    http_max_bytes=16 * 1024 * 1024, http_timeout_seconds=30,
+    zip_limits=ZipLimits())
 ```
 
-The byte limit checks the **actual streamed response body**, not just the
-Content-Length claim. Both options are opt-in; omission preserves the previous
-library behavior. Using either on a `file:` or `data:` URI is rejected rather
-than silently pretending the HTTP policy was enforced. `convert_response`
-supports `http_max_bytes` when a caller supplies an already-fetched response.
-
-This is **not** an SSRF defense or a full untrusted-input sandbox. Remote URLs
-can still reach internal networks/redirects using the process's credentials;
-restrict reachable destinations and proxy policy separately. A request
-timeout does not provide a total end-to-end conversion deadline. ZIP sources require separate `zip_limits` opt-in. PDF processing, CPU usage,
-strict completeness reporting and MCP defaults remain separate follow-up work.
+Exceeded limits raise `HTTPResponseLimitExceeded` or `ZipLimitExceeded`;
+never treat a failed/partial conversion as success. Neither limits SSRF,
+PDF/CPU work, skipped ZIP members nor all memory use. Defaults remain
+unchanged. Full options, exceptions, limitations, tests and examples:
+`docs/resource_limits.md` in the repository.
 
 ## ocr
 markitdown never OCRs. It reports where OCR is needed; peers (cc/cx via peerhub) transcribe. Pages/images leave the machine: sensitive

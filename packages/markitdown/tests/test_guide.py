@@ -47,6 +47,19 @@ def test_each_topic_is_selectable_and_within_budget(topic: str) -> None:
     assert len(re.findall(r"^## ", result.stdout, re.M)) == 1
 
 
+def test_formats_topic_keeps_bounded_api_discoverable() -> None:
+    text = _run("--guide", "formats").stdout
+    for needle in (
+        "ZipLimits",
+        "http_max_bytes",
+        "http_timeout_seconds",
+        "HTTPResponseLimitExceeded",
+        "ZipLimitExceeded",
+        "docs/resource_limits.md",
+    ):
+        assert needle in text, needle
+
+
 def test_all_prints_everything_within_budget() -> None:
     result = _run("--guide", "all")
     assert result.returncode == 0, result.stderr
