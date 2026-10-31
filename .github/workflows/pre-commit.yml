@@ -23,4 +23,9 @@ jobs:
           pre-commit install --install-hooks
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: |
+          # Surface exact formatter changes while retaining the failing gate.
+          if ! pre-commit run --all-files; then
+            git --no-pager diff -- . || true
+            exit 1
+          fi
