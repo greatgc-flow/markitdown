@@ -15,6 +15,7 @@ Exit codes: 0 PASS_RECORDED, 2 HOLD (missing/mismatched/unavailable proof),
 1 local argument/evidence-write error. --evidence is the ONLY file written.
 The JSON evidence is byte-identical to the console output.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,9 +46,11 @@ def _read_json(url: str, *, token: str = "") -> dict[str, Any]:
     if hostname not in ("api.github.com", "pypi.org"):
         raise ValueError("unsupported metadata origin")
     headers = {
-        "Accept": "application/vnd.github+json"
-        if hostname == "api.github.com"
-        else "application/json",
+        "Accept": (
+            "application/vnd.github+json"
+            if hostname == "api.github.com"
+            else "application/json"
+        ),
         "User-Agent": "markitdown-gc-readonly-release-parity",
     }
     if hostname == "api.github.com" and token:
@@ -70,9 +73,7 @@ def _distribution_filename(filename: Any, project: str, version: str) -> bool:
     if not re.fullmatch(r"[A-Za-z0-9_.+-]+", filename):
         return False
     prefix = re.escape(project.replace("-", "_")) + "-" + re.escape(version)
-    return bool(
-        re.fullmatch(prefix + r"(-[A-Za-z0-9_.+-]+\.whl|\.tar\.gz)", filename)
-    )
+    return bool(re.fullmatch(prefix + r"(-[A-Za-z0-9_.+-]+\.whl|\.tar\.gz)", filename))
 
 
 def compare_metadata(
@@ -128,7 +129,11 @@ def compare_metadata(
                 if item.get("state") != "uploaded":
                     raise ValueError("GitHub release asset not uploaded")
                 raw = item.get("digest")
-                digest = raw[7:] if isinstance(raw, str) and raw.startswith("sha256:") else None
+                digest = (
+                    raw[7:]
+                    if isinstance(raw, str) and raw.startswith("sha256:")
+                    else None
+                )
             if not isinstance(digest, str) or not _SHA256.fullmatch(digest):
                 raise ValueError(f"{source} lacks valid sha256 metadata")
             index[filename] = (size, digest)
@@ -179,7 +184,14 @@ def audit(repo: str, project: str, version: str, token: str = "") -> dict[str, A
             + "/json",
         )
         return compare_metadata(pypi, github, project=project, version=version)
-    except (OSError, ValueError, KeyError, TypeError, UnicodeError, json.JSONDecodeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        UnicodeError,
+        json.JSONDecodeError,
+    ) as exc:
         return {
             "status": "HOLD",
             "project": project,
@@ -197,7 +209,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--evidence", type=Path, help="Optional exact stdout JSON file")
     args = parser.parse_args(argv)
     try:
-        result = audit(args.repo, args.project, args.version, os.environ.get("GH_TOKEN", ""))
+        result = audit(
+            args.repo, args.project, args.version, os.environ.get("GH_TOKEN", "")
+        )
         output = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
         if args.evidence is not None:
             args.evidence.parent.mkdir(parents=True, exist_ok=True)
