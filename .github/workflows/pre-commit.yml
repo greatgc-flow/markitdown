@@ -1,6 +1,12 @@
 name: pre-commit
 on: [pull_request]
 
+concurrency:
+  # One latest candidate per pull request and workflow.
+  # Dispatch and main push runs use their unique run ID and are never cancelled.
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
