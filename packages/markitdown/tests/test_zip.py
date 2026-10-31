@@ -205,3 +205,98 @@ def test_zip_source_url_secrets_are_not_rendered() -> None:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
+
+
+# Security/resource-budget regression cases (all synthetic, no network).
+def _nested_archive(filename: str, payload: bytes) -> io.BytesIO:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr(filename, payload)
+    buf.seek(0)
+    return buf
+
+
+def _zip_markdown(stream: io.BytesIO, **options: Any) -> str:
+    return (
+        MarkItDown()
+        .convert_stream(
+            stream,
+            stream_info=StreamInfo(extension=".zip", filename="input.zip"),
+            **options,
+        )
+        .markdown
+    )
+
+
+def test_zip_resource_budget_normal_archive_with_small_limits() -> None:
+    buf = _nested_archive("notes.txt", b"Hello")
+    out = _zip_markdown(
+        buf,
+        zip_max_entries=1,
+        zip_max_member_bytes=10,
+        zip_max_total_bytes=10,
+        zip_max_depth=1,
+        zip_max_output_chars=120,
+    )
+    assert "## File: notes.txt" in out and "Hello" in out
+
+
+def test_zip_rejects_oversize_member_before_converting() -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _nested_archive("notes.txt", b"x" * 20)
+    with pytest.raises(ResourceLimitException, match="member"):
+        _zip_markdown(buf, zip_max_member_bytes=10)
+
+
+def test_zip_rejects_too_many_entries_before_converting() -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("one.txt", "one")
+        archive.writestr("two.txt", "two")
+    buf.seek(0)
+
+    with pytest.raises(ResourceLimitException, match="entries"):
+        _zip_markdown(buf, zip_max_entries=1)
+
+
+def test_zip_nested_archives_share_total_uncompressed_budget() -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    inner = _nested_archive("inner.txt", b"nested")
+    outer = _nested_archive("nested.zip", inner.getvalue())
+    # Enough for outer's stored inner.zip; not enough to include inner.txt.
+    with pytest.raises(ResourceLimitException, match="total"):
+        _zip_markdown(
+            outer,
+            zip_max_total_bytes=len(inner.getvalue()) + 2,
+            zip_max_member_bytes=1024 * 1024,
+        )
+
+
+def test_zip_rejects_nested_depth_without_silent_skip() -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    inner = _nested_archive("notes.txt", b"nested")
+    outer = _nested_archive("nested.zip", inner.getvalue())
+    with pytest.raises(ResourceLimitException, match="depth"):
+        _zip_markdown(outer, zip_max_depth=1)
+
+
+def test_zip_output_budget_bounds_accumulated_markdown() -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _nested_archive("notes.txt", b"some words")
+    with pytest.raises(ResourceLimitException, match="output"):
+        _zip_markdown(buf, zip_max_output_chars=30)
+
+
+@pytest.mark.parametrize("invalid", [0, -1, True, 1.5, "many"])
+def test_zip_rejects_invalid_budget_values(invalid: Any) -> None:
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _nested_archive("notes.txt", b"Hello")
+    with pytest.raises(ResourceLimitException, match="max_entries"):
+        _zip_markdown(buf, zip_max_entries=invalid)

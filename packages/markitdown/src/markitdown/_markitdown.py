@@ -48,6 +48,7 @@ from ._base_converter import DocumentConverter, DocumentConverterResult
 
 from ._exceptions import (
     FileConversionException,
+    ResourceLimitException,
     UnsupportedFormatException,
     FailedConversionAttempt,
 )
@@ -695,6 +696,9 @@ class MarkItDown:
                 if _accepts:
                     try:
                         res = converter.convert(file_stream, stream_info, **_kwargs)
+                    except ResourceLimitException:
+                        # Never fall back to another converter after a hard budget hit.
+                        raise
                     except Exception:
                         failed_attempts.append(
                             FailedConversionAttempt(
