@@ -55,12 +55,12 @@ from ._exceptions import (
 )
 
 
-def _validate_http_limits(max_bytes: Optional[int], timeout_seconds: Optional[float]) -> None:
+def _validate_http_limits(
+    max_bytes: Optional[int], timeout_seconds: Optional[float]
+) -> None:
     """Validate HTTP resource policy before network I/O, including null and bool."""
     if max_bytes is not None and (
-        isinstance(max_bytes, bool)
-        or not isinstance(max_bytes, int)
-        or max_bytes <= 0
+        isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes <= 0
     ):
         raise ValueError("http_max_bytes must be a positive integer")
     if timeout_seconds is not None and (
