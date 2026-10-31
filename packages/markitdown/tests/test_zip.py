@@ -300,3 +300,101 @@ def test_zip_rejects_invalid_budget_values(invalid: Any) -> None:
     buf = _nested_archive("notes.txt", b"Hello")
     with pytest.raises(ResourceLimitException, match="max_entries"):
         _zip_markdown(buf, zip_max_entries=invalid)
+
+
+# Central-directory metadata must be bounded before ZipFile builds ZipInfo objects.
+def _patch_eocd_counts(stream: io.BytesIO, count: int) -> io.BytesIO:
+    import struct
+
+    data = bytearray(stream.getvalue())
+    offset = data.rfind(b"PK" + bytes((5, 6)))
+    assert offset >= 0
+    struct.pack_into("<HH", data, offset + 8, count, count)
+    return io.BytesIO(data)
+
+
+def test_zip_preflight_accepts_empty_archive_and_embedded_signature_comment():
+    empty = io.BytesIO()
+    with zipfile.ZipFile(empty, "w") as archive:
+        archive.comment = b"Fake PK" + bytes((5, 6)) + b" in a comment"
+    empty.seek(0)
+    assert "Content from the zip file" in _zip_markdown(empty, zip_max_entries=1)
+
+
+def test_zip_preflight_supports_prefixed_zip_with_comment():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("hello.txt", b"Hello")
+        archive.comment = b"ordinary zip comment"
+    prefixed = io.BytesIO(b"MZ demo-prefix" + buf.getvalue())
+    assert "Hello" in _zip_markdown(prefixed, zip_max_directory_bytes=512)
+
+
+def test_zip_preflight_rejects_claimed_too_many_entries_before_zipfile(monkeypatch):
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _patch_eocd_counts(_nested_archive("hello.txt", b"ok"), 200)
+    def forbidden_zipfile(*args, **kwargs):
+        raise AssertionError("ZipFile must not be constructed before preflight")
+    monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
+    with pytest.raises(ResourceLimitException, match="entries"):
+        _zip_markdown(buf, zip_max_entries=2)
+
+
+def test_zip_preflight_rejects_central_directory_count_mismatch():
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as archive:
+        archive.writestr("one.txt", b"a")
+        archive.writestr("two.txt", b"b")
+    buf.seek(0)
+    understated = _patch_eocd_counts(buf, 1)
+    with pytest.raises(ResourceLimitException, match="entry count mismatch"):
+        _zip_markdown(understated, zip_max_entries=10)
+
+
+def test_zip_preflight_rejects_oversize_central_directory_before_zipfile(
+    monkeypatch,
+):
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _nested_archive("notes.txt", b"ok")
+    def forbidden_zipfile(*args, **kwargs):
+        raise AssertionError("ZipFile must not be constructed before preflight")
+    monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
+    with pytest.raises(ResourceLimitException, match="central directory byte"):
+        _zip_markdown(buf, zip_max_directory_bytes=1)
+
+
+def test_zip_preflight_rejects_declared_expansion_before_zipfile(monkeypatch):
+    from markitdown._exceptions import ResourceLimitException
+    import struct
+
+    buf = _nested_archive("notes.txt", b"ok")
+    data = bytearray(buf.getvalue())
+    central = data.find(b"PK" + bytes((1, 2)))
+    assert central >= 0
+    struct.pack_into("<I", data, central + 24, 1024 * 1024)
+    def forbidden_zipfile(*args, **kwargs):
+        raise AssertionError("ZipFile must not be constructed before preflight")
+    monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
+    with pytest.raises(ResourceLimitException, match="member expanded"):
+        _zip_markdown(io.BytesIO(data), zip_max_member_bytes=100)
+
+
+@pytest.mark.parametrize("bad", [0, -1, True, "many"])
+def test_zip_preflight_rejects_invalid_directory_budget(bad):
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _nested_archive("notes.txt", b"ok")
+    with pytest.raises(ResourceLimitException, match="zip_max_directory_bytes"):
+        _zip_markdown(buf, zip_max_directory_bytes=bad)
+
+
+def test_zip_preflight_rejects_zip64_sentinel():
+    from markitdown._exceptions import ResourceLimitException
+
+    buf = _patch_eocd_counts(_nested_archive("notes.txt", b"ok"), 65535)
+    with pytest.raises(ResourceLimitException, match="ZIP64"):
+        _zip_markdown(buf, zip_max_entries=100000)
