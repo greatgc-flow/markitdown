@@ -121,6 +121,13 @@ class TestPinnedReleaseActions(unittest.TestCase):
         self.assertEqual(release_job["needs"], "build")
         self.assertEqual(self.release["build"]["needs"], "verify-source-ci")
 
+    def test_replayed_tag_never_silently_skips_or_replaces_artifacts(self) -> None:
+        publisher = self.release["publish"]["steps"][-1]
+        self.assertNotIn("skip-existing", publisher.get("with", {}))
+        github_release_script = self.release["github-release"]["steps"][-1]["run"]
+        self.assertIn("gh release upload", github_release_script)
+        self.assertNotIn("--clobber", github_release_script)
+
 
 if __name__ == "__main__":
     unittest.main()
