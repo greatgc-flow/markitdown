@@ -29,6 +29,39 @@ For known CP949 Korean input use --charset cp949; automatic detection can silent
 `--extract-media DIR` (Python: `extract_media=DIR`) saves original DOCX/PPTX/XLSX/HWP5/HWPX images as `<sha256[:12]>.<ext>`, deduplicates bytes, and links relative to the output file (cwd for stdout; Python: `media_base_dir`). Unsafe members/collisions fail. Unsupported images get explicit omission markers. HWP5 parser payloads may be decompressed from OLE streams; no image re-encoding. Default Markdown is unchanged.
 `convert()` also fetches http(s)://, file://, data: URIs: never pass untrusted input as the source.
 
+
+### Optional bounded HTTP conversion (Python API)
+
+When converting remote HTTP/HTTPS documents in unattended workflows, bound the
+response bytes and specify a network timeout rather than permitting an unlimited
+in-memory buffer:
+
+```python
+from markitdown import MarkItDown, HTTPResponseLimitExceeded
+
+try:
+    result = MarkItDown().convert_uri(
+        "https://example.test/document.txt",
+        http_max_bytes=16 * 1024 * 1024,
+        http_timeout_seconds=30,
+    )
+except HTTPResponseLimitExceeded:
+    raise  # Reject as incomplete; no partial markdown is returned
+```
+
+The byte limit checks the **actual streamed response body**, not just the
+Content-Length claim. Both options are opt-in; omission preserves the previous
+library behavior. Using either on a `file:` or `data:` URI is rejected rather
+than silently pretending the HTTP policy was enforced. `convert_response`
+supports `http_max_bytes` when a caller supplies an already-fetched response.
+
+This is **not** an SSRF defense or a full untrusted-input sandbox. Remote URLs
+can still reach internal networks/redirects using the process's credentials;
+restrict reachable destinations and proxy policy separately. A request
+timeout does not provide a total end-to-end conversion deadline. PDF/ZIP
+decompression, CPU usage, strict completeness reporting and MCP defaults
+remain separate follow-up work.
+
 ## ocr
 markitdown never OCRs. It reports where OCR is needed; peers (cc/cx via peerhub) transcribe. Pages/images leave the machine: sensitive
 documents (medical, legal, personal) and jobs over 20 pages/images need the owner's approval; one approval = at most 10 asks x 3 pages.
