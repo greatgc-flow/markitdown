@@ -9,6 +9,7 @@ from ._markitdown import (
     PRIORITY_GENERIC_FILE_FORMAT,
 )
 from ._base_converter import DocumentConverterResult, DocumentConverter
+from .converters._zip_converter import ZipLimits
 from ._stream_info import StreamInfo
 from ._exceptions import (
     MarkItDownException,
@@ -16,6 +17,7 @@ from ._exceptions import (
     FailedConversionAttempt,
     FileConversionException,
     UnsupportedFormatException,
+    ZipLimitExceeded,
 )
 
 __all__ = [
@@ -28,6 +30,8 @@ __all__ = [
     "FailedConversionAttempt",
     "FileConversionException",
     "UnsupportedFormatException",
+    "ZipLimitExceeded",
+    "ZipLimits",
     "StreamInfo",
     "PRIORITY_SPECIFIC_FILE_FORMAT",
     "PRIORITY_GENERIC_FILE_FORMAT",
