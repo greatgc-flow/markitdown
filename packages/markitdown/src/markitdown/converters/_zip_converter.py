@@ -7,7 +7,11 @@ from typing import BinaryIO, Any, TYPE_CHECKING
 
 from .._base_converter import DocumentConverter, DocumentConverterResult
 from .._stream_info import StreamInfo
-from .._exceptions import UnsupportedFormatException, FileConversionException, ResourceLimitException
+from .._exceptions import (
+    UnsupportedFormatException,
+    FileConversionException,
+    ResourceLimitException,
+)
 
 # Break otherwise circular import for type hinting
 if TYPE_CHECKING:
@@ -75,9 +79,9 @@ class _ZipBudget:
 class ZipConverter(DocumentConverter):
     """Converts ZIP files to markdown by extracting and converting all contained files.
 
-    The converter extracts the ZIP contents to a temporary directory, processes each file
-    using appropriate converters based on file extensions, and then combines the results
-    into a single markdown document. The temporary directory is cleaned up after processing.
+    The converter reads members in memory, processes each file with its
+    matching converter, and combines bounded Markdown output. No files
+    are extracted to disk.
 
     Example output format:
     ```markdown
@@ -108,7 +112,7 @@ class ZipConverter(DocumentConverter):
     - Processes nested files recursively
     - Uses appropriate converters for each file type
     - Preserves formatting of converted content
-    - Cleans up temporary files after processing
+    - Shares resource limits across nested archives
     """
 
     def __init__(
@@ -156,7 +160,8 @@ class ZipConverter(DocumentConverter):
 
         # Keep nested ZIP conversions on the same counters and depth.
         member_kwargs = {
-            key: value for key, value in kwargs.items()
+            key: value
+            for key, value in kwargs.items()
             if key not in ("file_extension", "url")
         }
         member_kwargs["_zip_budget"] = budget
@@ -181,7 +186,9 @@ class ZipConverter(DocumentConverter):
                         with archive.open(entry) as member:
                             payload = member.read(entry.file_size + 1)
                         if len(payload) > entry.file_size:
-                            raise ResourceLimitException("ZIP member expanded size changed")
+                            raise ResourceLimitException(
+                                "ZIP member expanded size changed"
+                            )
                         result = self._markitdown.convert_stream(
                             stream=io.BytesIO(payload),
                             stream_info=StreamInfo(
@@ -191,9 +198,13 @@ class ZipConverter(DocumentConverter):
                             **member_kwargs,
                         )
                         if result is not None:
-                            addition = f"## File: {entry.filename}\n\n{result.markdown}\n\n"
+                            addition = (
+                                f"## File: {entry.filename}\n\n{result.markdown}\n\n"
+                            )
                             if written + len(addition) > budget.max_output_chars:
-                                raise ResourceLimitException("ZIP output size limit exceeded")
+                                raise ResourceLimitException(
+                                    "ZIP output size limit exceeded"
+                                )
                             parts.append(addition)
                             written += len(addition)
                     except (UnsupportedFormatException, FileConversionException):
