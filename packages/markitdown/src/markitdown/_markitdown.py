@@ -531,14 +531,20 @@ class MarkItDown:
         # HTTP/HTTPS URIs
         elif scheme in ("http", "https"):
             response = self._requests_session.get(uri, stream=True)
-            response.raise_for_status()
-            return self.convert_response(
-                response,
-                stream_info=stream_info,
-                file_extension=file_extension,
-                url=mock_url,
-                **kwargs,
-            )
+            try:
+                response.raise_for_status()
+                return self.convert_response(
+                    response,
+                    stream_info=stream_info,
+                    file_extension=file_extension,
+                    url=mock_url,
+                    **kwargs,
+                )
+            finally:
+                # This method owns the streamed response returned by get().
+                # Close it on status errors, failed reads and converter errors
+                # as well as success. convert_response() is caller-owned.
+                response.close()
         else:
             raise ValueError(
                 f"Unsupported URI scheme: {uri.split(':')[0]}. Supported schemes are: file:, data:, http:, https:"
