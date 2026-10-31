@@ -119,7 +119,9 @@ def main():
         # Require loopback at the socket layer; reach it through an authenticated
         # tunnel or reverse proxy if remote access is really needed.
         try:
-            is_loopback = host.lower() == "localhost" or ipaddress.ip_address(host).is_loopback
+            is_loopback = (
+                host.lower() == "localhost" or ipaddress.ip_address(host).is_loopback
+            )
         except ValueError:
             is_loopback = False
         if not is_loopback:
