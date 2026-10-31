@@ -219,9 +219,11 @@ def test_zip_limits_reject_invalid_values(kwargs):
 
 def test_zip_limits_accept_small_input_without_changing_markdown():
     archive = _archive_bytes(**{"notes.txt": b"one", "more.txt": b"two"})
-    expected = MarkItDown().convert_stream(
-        archive, stream_info=StreamInfo(extension=".zip")
-    ).markdown
+    expected = (
+        MarkItDown()
+        .convert_stream(archive, stream_info=StreamInfo(extension=".zip"))
+        .markdown
+    )
     archive.seek(0)
     assert _convert_bounded(archive, ZipLimits()).markdown == expected
 
