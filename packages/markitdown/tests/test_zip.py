@@ -10,6 +10,7 @@ import pytest
 from markitdown import (
     DocumentConverter,
     DocumentConverterResult,
+    FileConversionException,
     MarkItDown,
     StreamInfo,
 )
@@ -183,3 +184,91 @@ def test_zip_stream_no_filename_header() -> None:
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__]))
+
+
+# Bounded ZIP conversion is an explicitly selected API policy. These tests
+# use local, deterministic in-memory archives; no provider/network calls.
+
+from markitdown import ZipLimits, ZipLimitExceeded
+
+
+def _archive_bytes(**entries: bytes) -> io.BytesIO:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, contents in entries.items():
+            archive.writestr(name, contents)
+    buf.seek(0)
+    return buf
+
+
+def _convert_bounded(buf: io.BytesIO, limits: ZipLimits):
+    return MarkItDown().convert_stream(
+        buf, stream_info=StreamInfo(extension=".zip"), zip_limits=limits
+    )
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"max_entries": 0},
+    {"max_member_bytes": -1},
+    {"max_total_uncompressed_bytes": True},
+    {"max_depth": 0},
+    {"max_output_chars": None},
+])
+def test_zip_limits_reject_invalid_values(kwargs):
+    with pytest.raises(ValueError):
+        ZipLimits(**kwargs)
+
+
+def test_zip_limits_accept_small_input_without_changing_markdown():
+    archive = _archive_bytes(**{"notes.txt": b"one", "more.txt": b"two"})
+    expected = MarkItDown().convert_stream(
+        archive, stream_info=StreamInfo(extension=".zip")
+    ).markdown
+    archive.seek(0)
+    assert _convert_bounded(archive, ZipLimits()).markdown == expected
+
+
+@pytest.mark.parametrize("limits", [
+    ZipLimits(max_entries=1),
+    ZipLimits(max_member_bytes=3),
+    ZipLimits(max_total_uncompressed_bytes=6),
+    ZipLimits(max_output_chars=35),
+])
+def test_zip_limits_fail_closed_not_partial_markdown(limits):
+    archive = _archive_bytes(**{"first.txt": b"four", "second.txt": b"five"})
+    with pytest.raises(ZipLimitExceeded):
+        _convert_bounded(archive, limits)
+
+
+def test_zip_limits_count_bytes_through_nested_archive():
+    inner = _archive_bytes(**{"payload.txt": b"1234567890"}).getvalue()
+    outer = _archive_bytes(**{"child.zip": inner})
+    # Outer member counts as bytes; inner plaintext also consumes the same
+    # total budget, so it cannot be concealed in a nested archive.
+    with pytest.raises(ZipLimitExceeded):
+        _convert_bounded(
+            outer,
+            ZipLimits(max_total_uncompressed_bytes=len(inner) + 5),
+        )
+
+
+def test_zip_limits_reject_excess_nesting_before_child_read():
+    inner = _archive_bytes(**{"child.txt": b"Hello"}).getvalue()
+    outer = _archive_bytes(**{"child.zip": inner})
+    with pytest.raises(ZipLimitExceeded, match="depth"):
+        _convert_bounded(outer, ZipLimits(max_depth=1))
+
+
+def test_zip_limits_do_not_change_trusted_unbounded_default():
+    archive = _archive_bytes(**{"large.txt": b"x" * 128})
+    result = _convert_bounded(archive, ZipLimits(max_member_bytes=128))
+    assert "x" * 128 in result.markdown
+
+
+def test_zip_limits_reject_invalid_policy_object():
+    with pytest.raises((TypeError, FileConversionException)):
+        MarkItDown().convert_stream(
+            _archive_bytes(**{"a.txt": b"x"}),
+            stream_info=StreamInfo(extension=".zip"),
+            zip_limits={"max_entries": 1},
+        )
