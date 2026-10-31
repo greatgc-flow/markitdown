@@ -16,6 +16,14 @@ class MarkItDownException(Exception):
     pass
 
 
+class ResourceLimitException(MarkItDownException):
+    """A configured conversion resource budget was exceeded.
+
+    Deliberately distinct from unsupported/invalid members: an archive must
+    not return partial Markdown as a successful conversion after a budget hit.
+    """
+
+
 class MissingDependencyException(MarkItDownException):
     """
     Converters shipped with MarkItDown may depend on optional
