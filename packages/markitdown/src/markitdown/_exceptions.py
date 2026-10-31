@@ -85,3 +85,13 @@ class FileConversionException(MarkItDownException):
                             )
 
         super().__init__(message)
+
+
+class HTTPResponseLimitExceeded(MarkItDownException):
+    """An explicitly configured HTTP body budget was exceeded.
+
+    Raised before bytes above the cap are buffered or passed to a converter.
+    This is not proof that content or its network origin is otherwise safe.
+    """
+
+    pass
