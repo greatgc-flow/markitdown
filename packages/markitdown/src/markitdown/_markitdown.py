@@ -1,4 +1,5 @@
 import mimetypes
+import math
 import os
 import re
 import sys
@@ -50,7 +51,25 @@ from ._exceptions import (
     FileConversionException,
     UnsupportedFormatException,
     FailedConversionAttempt,
+    HTTPResponseLimitExceeded,
 )
+
+
+def _validate_http_limits(max_bytes: Optional[int], timeout_seconds: Optional[float]) -> None:
+    """Validate HTTP resource policy before network I/O, including null and bool."""
+    if max_bytes is not None and (
+        isinstance(max_bytes, bool)
+        or not isinstance(max_bytes, int)
+        or max_bytes <= 0
+    ):
+        raise ValueError("http_max_bytes must be a positive integer")
+    if timeout_seconds is not None and (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or not math.isfinite(timeout_seconds)
+        or timeout_seconds <= 0
+    ):
+        raise ValueError("http_timeout_seconds must be a finite positive number")
 
 
 def _get_content_disposition_filename(content_disposition: str) -> Optional[str]:
@@ -495,6 +514,14 @@ class MarkItDown:
     ) -> DocumentConverterResult:
         uri = uri.strip()
         scheme = urlparse(uri).scheme.lower()
+        # Do not silently pass an HTTP-only safety policy through a file/data
+        # conversion where it would provide no protection.
+        max_bytes = kwargs.get("http_max_bytes")
+        timeout_seconds = kwargs.pop("http_timeout_seconds", None)
+        if max_bytes is not None or timeout_seconds is not None:
+            _validate_http_limits(max_bytes, timeout_seconds)
+            if scheme not in ("http", "https"):
+                raise ValueError("HTTP resource limits require http: or https: URI")
 
         # File URIs
         if scheme == "file":
@@ -530,15 +557,23 @@ class MarkItDown:
             )
         # HTTP/HTTPS URIs
         elif scheme in ("http", "https"):
-            response = self._requests_session.get(uri, stream=True)
+            request_options: dict[str, Any] = {"stream": True}
+            if timeout_seconds is not None:
+                request_options["timeout"] = timeout_seconds
+            response = self._requests_session.get(uri, **request_options)
             response.raise_for_status()
-            return self.convert_response(
-                response,
-                stream_info=stream_info,
-                file_extension=file_extension,
-                url=mock_url,
-                **kwargs,
-            )
+            try:
+                return self.convert_response(
+                    response,
+                    stream_info=stream_info,
+                    file_extension=file_extension,
+                    url=mock_url,
+                    **kwargs,
+                )
+            except HTTPResponseLimitExceeded:
+                # A rejected streaming response must not keep its socket open.
+                response.close()
+                raise
         else:
             raise ValueError(
                 f"Unsupported URI scheme: {uri.split(':')[0]}. Supported schemes are: file:, data:, http:, https:"
@@ -553,6 +588,12 @@ class MarkItDown:
         url: Optional[str] = None,  # Deprecated -- use stream_info
         **kwargs: Any,
     ) -> DocumentConverterResult:
+        # Remove the resource-policy option before forwarding converter kwargs.
+        # The observed bytes, not the untrusted Content-Length header, govern
+        # admission. Direct convert_response() callers can opt in as well.
+        max_bytes = kwargs.pop("http_max_bytes", None)
+        _validate_http_limits(max_bytes, None)
+
         # If there is a content-type header, get the mimetype and charset (if present)
         mimetype: Optional[str] = None
         charset: Optional[str] = None
@@ -605,9 +646,18 @@ class MarkItDown:
             # Deprecated -- use stream_info
             base_guess = base_guess.copy_and_update(url=url)
 
-        # Read into BytesIO
+        # Stream into a bounded buffer when the caller requests HTTP limits.
+        # Checking *before* every write handles unknown and false Content-Length.
         buffer = io.BytesIO()
+        received = 0
         for chunk in response.iter_content(chunk_size=65536):
+            if not chunk:
+                continue
+            received += len(chunk)
+            if max_bytes is not None and received > max_bytes:
+                raise HTTPResponseLimitExceeded(
+                    "HTTP response exceeded the configured byte limit"
+                )
             buffer.write(chunk)
         buffer.seek(0)
 
