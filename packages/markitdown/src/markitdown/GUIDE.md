@@ -38,7 +38,8 @@ For ZIP input from untrusted sources, use explicit per-conversion limits:
 ```python
 from markitdown import MarkItDown, ZipLimits, ZipLimitExceeded
 
-limits = ZipLimits(max_entries=200, max_member_bytes=8 * 1024 * 1024,
+limits = ZipLimits(max_entries=200, max_archive_bytes=32 * 1024 * 1024,
+                   max_member_bytes=8 * 1024 * 1024,
                    max_total_uncompressed_bytes=32 * 1024 * 1024,
                    max_depth=2, max_output_chars=4 * 1024 * 1024)
 try:
@@ -48,7 +49,9 @@ except ZipLimitExceeded:
     raise
 ```
 
-Limits apply to each ZIP member, nested archives and final Markdown output.
+Limits apply to the compressed ZIP input before parsing, each ZIP member, nested
+archives and final Markdown output. The limit does not constrain HTTP fetches
+or PDF processing before ZIP selection.
 No source extraction to disk is performed. A ZIP may still contain unsupported
 files which the legacy converter skips; do **not** mistake successful Markdown
 generation for full fidelity. Structured completeness reports and limits on
