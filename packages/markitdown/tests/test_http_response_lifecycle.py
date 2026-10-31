@@ -114,7 +114,7 @@ def test_http_rejects_invalid_byte_budget(bad):
     assert response.close_calls == 0
 
 
-@pytest.mark.parametrize("bad", [0, -2, True, "10", (0, 2), (1, 0), (1, 2, 3)])
+@pytest.mark.parametrize("bad", [0, -2, True, "10", (1,), (0, 2), (1, 0), (1, 2, 3)])
 def test_http_rejects_invalid_timeout_before_network(bad):
     response = FakeResponse()
     session = FakeSession(response)
