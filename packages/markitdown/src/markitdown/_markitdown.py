@@ -84,8 +84,9 @@ def _positive_byte_limit(value: Any, option: str) -> int:
 
 def _http_timeout(value: Any) -> Any:
     """Requests timeout: positive finite seconds or (connect, idle-read)."""
-    items = value if isinstance(value, tuple) else (value,)
-    if len(items) not in (1, 2):
+    is_tuple = isinstance(value, tuple)
+    items = value if is_tuple else (value,)
+    if (is_tuple and len(items) != 2) or (not is_tuple and len(items) != 1):
         raise ValueError("http_timeout must be positive seconds or a two-item tuple")
     for item in items:
         if (
