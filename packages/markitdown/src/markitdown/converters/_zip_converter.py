@@ -99,7 +99,7 @@ def _preflight_central_directory(file_stream: BinaryIO, budget: _ZipBudget) -> N
         # A comment may contain the EOCD signature: require the trailing
         # length to match, rather than blindly using rfind().
         for pos in range(len(tail) - 22, -1, -1):
-            if tail[pos : pos + 4] != b"PK\\x05\\x06":
+            if tail[pos : pos + 4] != b"PK\x05\x06":
                 continue
             length = struct.unpack_from("<H", tail, pos + 20)[0]
             if pos + 22 + length == len(tail):
@@ -133,7 +133,7 @@ def _preflight_central_directory(file_stream: BinaryIO, budget: _ZipBudget) -> N
             if seen >= count:
                 raise ResourceLimitException("ZIP central directory entry count mismatch")
             header = file_stream.read(46)
-            if len(header) != 46 or header[:4] != b"PK\\x01\\x02":
+            if len(header) != 46 or header[:4] != b"PK\x01\x02":
                 raise zipfile.BadZipFile("invalid ZIP central directory record")
             expanded = struct.unpack_from("<I", header, 24)[0]
             if expanded == 0xFFFFFFFF:
