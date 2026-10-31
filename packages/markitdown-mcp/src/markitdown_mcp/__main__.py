@@ -2,6 +2,7 @@ import contextlib
 import logging
 import os
 import sys
+import ipaddress
 from collections.abc import AsyncIterator
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -113,19 +114,21 @@ def main():
 
     if use_http:
         host = args.host if args.host else "127.0.0.1"
-        if args.host and args.host not in ("127.0.0.1", "localhost"):
-            print(
-                "\n"
-                "WARNING: The server is being bound to a non-localhost interface "
-                f"({host}).\n"
-                "This exposes the server to other machines on the network or Internet.\n"
-                "The server has NO authentication and runs with your user's privileges.\n"
-                "Any process or user that can reach this interface can read files and\n"
-                "fetch network resources accessible to this user.\n"
-                "Only proceed if you understand the security implications.\n",
-                file=sys.stderr,
+        # This tool can read local files and fetch intranet URLs as the process
+        # user. Unlike a normal read-only HTTP service, it has no authentication.
+        # Require loopback at the socket layer; reach it through an authenticated
+        # tunnel or reverse proxy if remote access is really needed.
+        try:
+            is_loopback = host.lower() == "localhost" or ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            is_loopback = False
+        if not is_loopback:
+            parser.error(
+                "MCP HTTP/SSE must bind to loopback (localhost, 127.0.0.1, ::1). "
+                "For remote use, place an authenticated TLS proxy or tunnel in "
+                "front of a loopback-bound server; direct public bind is disabled."
             )
-        starlette_app = create_starlette_app(mcp, host=host, debug=True)
+        starlette_app = create_starlette_app(mcp, host=host, debug=False)
         uvicorn.run(
             starlette_app,
             host=host,
