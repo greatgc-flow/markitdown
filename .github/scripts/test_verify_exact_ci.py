@@ -88,7 +88,6 @@ class TestExactReleaseCI(unittest.TestCase):
                     validate_run(self._run(), jobs, "a" * 40, self.jobs)
 
 
-
 class TestPinnedReleaseActions(unittest.TestCase):
     """Release job dependencies must be immutable, including OIDC publisher."""
 
@@ -115,14 +114,19 @@ class TestPinnedReleaseActions(unittest.TestCase):
         release_job = self.release["publish"]
         self.assertEqual(
             release_job["steps"][-1]["uses"],
-            "pypa/gh-action-pypi-publish@"
-            "7245906fb61fa33a13554f9d5fb856fe61758086",
+            "pypa/gh-action-pypi-publish@" "7245906fb61fa33a13554f9d5fb856fe61758086",
         )
         self.assertEqual(release_job["environment"], "pypi")
         self.assertEqual(release_job["permissions"].get("id-token"), "write")
         self.assertEqual(release_job["needs"], "build")
         self.assertEqual(self.release["build"]["needs"], "verify-source-ci")
 
+    def test_replayed_tag_never_silently_skips_or_replaces_artifacts(self) -> None:
+        publisher = self.release["publish"]["steps"][-1]
+        self.assertNotIn("skip-existing", publisher.get("with", {}))
+        github_release_script = self.release["github-release"]["steps"][-1]["run"]
+        self.assertIn("gh release upload", github_release_script)
+        self.assertNotIn("--clobber", github_release_script)
 
 
 
