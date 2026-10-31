@@ -2,6 +2,7 @@
 
 These tests do not open a socket, make a request or access local documents.
 """
+
 import sys
 from unittest.mock import Mock
 
@@ -10,10 +11,18 @@ import pytest
 from markitdown_mcp import __main__ as server
 
 
-@pytest.mark.parametrize("host", [
-    "0.0.0.0", "::", "192.168.1.5", "10.0.0.2", "example.com",
-    "localhost.example.com", "127.0.0.1.evil.example",
-])
+@pytest.mark.parametrize(
+    "host",
+    [
+        "0.0.0.0",
+        "::",
+        "192.168.1.5",
+        "10.0.0.2",
+        "example.com",
+        "localhost.example.com",
+        "127.0.0.1.evil.example",
+    ],
+)
 def test_remote_bind_rejected_before_server_creation(monkeypatch, capsys, host):
     run = Mock()
     build = Mock()
