@@ -7,7 +7,11 @@ from typing import BinaryIO, Any, TYPE_CHECKING
 
 from .._base_converter import DocumentConverter, DocumentConverterResult
 from .._stream_info import StreamInfo
-from .._exceptions import UnsupportedFormatException, FileConversionException, ZipLimitExceeded
+from .._exceptions import (
+    UnsupportedFormatException,
+    FileConversionException,
+    ZipLimitExceeded,
+)
 
 # Break otherwise circular import for type hinting
 if TYPE_CHECKING:
@@ -59,7 +63,9 @@ class _ZipBudget:
         if depth > self.limits.max_depth:
             raise ZipLimitExceeded("ZIP nesting depth limit exceeded")
 
-    def read_member(self, archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> io.BytesIO:
+    def read_member(
+        self, archive: zipfile.ZipFile, info: zipfile.ZipInfo
+    ) -> io.BytesIO:
         self.entries += 1
         if self.entries > self.limits.max_entries:
             raise ZipLimitExceeded("ZIP entry count limit exceeded")
@@ -76,12 +82,14 @@ class _ZipBudget:
                     break
                 if len(data) + len(chunk) > self.limits.max_member_bytes:
                     raise ZipLimitExceeded("ZIP member byte limit exceeded")
-                if self.total_bytes + len(chunk) > self.limits.max_total_uncompressed_bytes:
+                if (
+                    self.total_bytes + len(chunk)
+                    > self.limits.max_total_uncompressed_bytes
+                ):
                     raise ZipLimitExceeded("ZIP total decompressed byte limit exceeded")
                 data.extend(chunk)
                 self.total_bytes += len(chunk)
         return io.BytesIO(data)
-
 
 
 class ZipConverter(DocumentConverter):
@@ -211,8 +219,14 @@ class ZipConverter(DocumentConverter):
                     )
                     if result is not None:
                         segment = f"## File: {name}\n\n{result.markdown}\n\n"
-                        if budget is not None and output_chars + len(segment) > budget.limits.max_output_chars:
-                            raise ZipLimitExceeded("ZIP Markdown output character limit exceeded")
+                        if (
+                            budget is not None
+                            and output_chars + len(segment)
+                            > budget.limits.max_output_chars
+                        ):
+                            raise ZipLimitExceeded(
+                                "ZIP Markdown output character limit exceeded"
+                            )
                         parts.append(segment)
                         output_chars += len(segment)
                 except (UnsupportedFormatException, FileConversionException):
