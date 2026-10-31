@@ -1,6 +1,7 @@
 import zipfile
 import io
 import os
+import struct
 from dataclasses import dataclass
 
 from typing import BinaryIO, Any, TYPE_CHECKING
@@ -37,6 +38,7 @@ class _ZipBudget:
     max_total_bytes: int
     max_depth: int
     max_output_chars: int
+    max_directory_bytes: int
     entries: int = 0
     total_bytes: int = 0
     depth: int = 0
@@ -49,6 +51,7 @@ class _ZipBudget:
             "zip_max_total_bytes": 512 * 1024 * 1024,
             "zip_max_depth": 4,
             "zip_max_output_chars": 32 * 1024 * 1024,
+            "zip_max_directory_bytes": 16 * 1024 * 1024,
         }
         values = []
         for key, default in defaults.items():
@@ -74,6 +77,83 @@ class _ZipBudget:
             if self.total_bytes + entry.file_size > self.max_total_bytes:
                 raise ResourceLimitException("ZIP total expanded size limit exceeded")
             self.total_bytes += entry.file_size
+
+
+def _preflight_central_directory(file_stream: BinaryIO, budget: _ZipBudget) -> None:
+    """Bound ZIP metadata *before* ZipFile allocates one ZipInfo per entry.
+
+    Scan the central directory with fixed-size reads, rejecting ZIP64/multi-disk
+    archives whose metadata cannot be safely bounded by this simple policy.
+    Supports ordinary comments, empty ZIPs and prepended self-extracting data.
+    The original stream position is preserved for ZipFile and other converters.
+    """
+    original = file_stream.tell()
+    try:
+        file_stream.seek(0, os.SEEK_END)
+        end = file_stream.tell()
+        tail_len = min(end, 65557)  # EOCD's 22 bytes + 65535-byte comment.
+        file_stream.seek(end - tail_len)
+        tail = file_stream.read(tail_len)
+
+        eocd = None
+        # A comment may contain the EOCD signature: require the trailing
+        # length to match, rather than blindly using rfind().
+        for pos in range(len(tail) - 22, -1, -1):
+            if tail[pos : pos + 4] != b"PK\\x05\\x06":
+                continue
+            length = struct.unpack_from("<H", tail, pos + 20)[0]
+            if pos + 22 + length == len(tail):
+                eocd = pos
+                break
+        if eocd is None:
+            raise zipfile.BadZipFile("ZIP end-of-central-directory missing")
+
+        _, disk, cd_disk, disk_count, count, cd_size, cd_offset, _ = (
+            struct.unpack_from("<4s4H2IH", tail, eocd)
+        )
+        if disk or cd_disk or disk_count != count:
+            raise ResourceLimitException("split ZIP archives are unsupported")
+        if count == 0xFFFF or cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF:
+            raise ResourceLimitException("ZIP64 central directory is unsupported")
+        if budget.entries + count > budget.max_entries:
+            raise ResourceLimitException("ZIP entries limit exceeded")
+        if cd_size > budget.max_directory_bytes:
+            raise ResourceLimitException("ZIP central directory byte limit exceeded")
+
+        # ZIP offsets are relative to the ZIP payload, so allow an SFX prefix.
+        cd_start = end - tail_len + eocd - cd_size
+        if cd_start < cd_offset or cd_start < 0:
+            raise zipfile.BadZipFile("invalid ZIP central directory offset")
+        cd_end = cd_start + cd_size
+        file_stream.seek(cd_start)
+
+        seen = 0
+        expanded_total = budget.total_bytes
+        while file_stream.tell() < cd_end:
+            if seen >= count:
+                raise ResourceLimitException("ZIP central directory entry count mismatch")
+            header = file_stream.read(46)
+            if len(header) != 46 or header[:4] != b"PK\\x01\\x02":
+                raise zipfile.BadZipFile("invalid ZIP central directory record")
+            expanded = struct.unpack_from("<I", header, 24)[0]
+            if expanded == 0xFFFFFFFF:
+                raise ResourceLimitException("ZIP64 member size is unsupported")
+            if expanded > budget.max_member_bytes:
+                raise ResourceLimitException("ZIP member expanded size limit exceeded")
+            expanded_total += expanded
+            if expanded_total > budget.max_total_bytes:
+                raise ResourceLimitException("ZIP total expanded size limit exceeded")
+            name_len, extra_len, comment_len = struct.unpack_from("<3H", header, 28)
+            next_record = file_stream.tell() + name_len + extra_len + comment_len
+            if next_record > cd_end:
+                raise zipfile.BadZipFile("truncated ZIP central directory record")
+            file_stream.seek(next_record)
+            seen += 1
+
+        if seen != count or file_stream.tell() != cd_end:
+            raise ResourceLimitException("ZIP central directory entry count mismatch")
+    finally:
+        file_stream.seek(original)
 
 
 class ZipConverter(DocumentConverter):
@@ -174,6 +254,7 @@ class ZipConverter(DocumentConverter):
 
         budget.enter()
         try:
+            _preflight_central_directory(file_stream, budget)
             with zipfile.ZipFile(file_stream, "r") as archive:
                 entries = archive.infolist()
                 budget.reserve(entries)
