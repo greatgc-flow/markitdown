@@ -206,6 +206,7 @@ def _convert_bounded(buf: io.BytesIO, limits: ZipLimits):
     "kwargs",
     [
         {"max_entries": 0},
+        {"max_archive_bytes": 0},
         {"max_member_bytes": -1},
         {"max_total_uncompressed_bytes": True},
         {"max_depth": 0},
@@ -239,6 +240,14 @@ def test_zip_limits_fail_closed_not_partial_markdown(limits):
     archive = _archive_bytes(**{"first.txt": b"four", "second.txt": b"five"})
     with pytest.raises(ZipLimitExceeded):
         _convert_bounded(archive, limits)
+
+
+def test_zip_limits_reject_compressed_archive_before_open():
+    archive = _archive_bytes(**{"data.txt": b"hello"})
+    with pytest.raises(ZipLimitExceeded, match="archive"):
+        _convert_bounded(
+            archive, ZipLimits(max_archive_bytes=len(archive.getvalue()) - 1)
+        )
 
 
 def test_zip_limits_count_bytes_through_nested_archive():
