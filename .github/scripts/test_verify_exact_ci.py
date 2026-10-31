@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
+
+import yaml
 
 from verify_exact_ci import expected_jobs, validate_run
 
@@ -84,6 +87,44 @@ class TestExactReleaseCI(unittest.TestCase):
                 jobs[0]["conclusion"] = bad
                 with self.assertRaisesRegex(ValueError, "incomplete"):
                     validate_run(self._run(), jobs, "a" * 40, self.jobs)
+
+
+
+class TestPinnedReleaseActions(unittest.TestCase):
+    """Release job dependencies must be immutable, including OIDC publisher."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        file = Path(__file__).resolve().parents[1] / "workflows" / "release.yml"
+        cls.release = yaml.safe_load(file.read_text(encoding="utf-8"))["jobs"]
+
+    def test_every_external_release_action_has_full_commit_id(self) -> None:
+        count = 0
+        for job_id, job in self.release.items():
+            for step in job.get("steps", []):
+                uses = step.get("uses")
+                if not uses:
+                    continue
+                with self.subTest(job=job_id, action=uses):
+                    self.assertRegex(
+                        uses, r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}$"
+                    )
+                count += 1
+        self.assertEqual(count, 8)
+
+    def test_publisher_is_known_security_fixed_commit(self) -> None:
+        release_job = self.release["publish"]
+        self.assertEqual(
+            release_job["steps"][-1]["uses"],
+            "pypa/gh-action-pypi-publish@"
+            "7245906fb61fa33a13554f9d5fb856fe61758086",
+        )
+        self.assertEqual(release_job["environment"], "pypi")
+        self.assertEqual(release_job["permissions"].get("id-token"), "write")
+        self.assertEqual(release_job["needs"], "build")
+        self.assertEqual(self.release["build"]["needs"], "verify-source-ci")
+
+
 
 
 if __name__ == "__main__":
