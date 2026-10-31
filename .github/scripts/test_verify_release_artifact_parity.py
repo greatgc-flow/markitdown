@@ -1,4 +1,5 @@
 """Offline fail-closed tests for the PyPI/GitHub registry digest parity audit."""
+
 from __future__ import annotations
 
 import copy
@@ -138,11 +139,11 @@ class TestRegistryArtifactParity(unittest.TestCase):
         github["assets"][0]["state"] = "new"
         self.assertHold(pypi, github, "not uploaded")
 
-    def test_unrelated_ancillary_asset_does_not_change_distribution_parity(self) -> None:
+    def test_unrelated_ancillary_asset_does_not_change_distribution_parity(
+        self,
+    ) -> None:
         pypi, github = fixture()
-        github["assets"].append(
-            {"name": "provenance.json", "digest": None, "size": 7}
-        )
+        github["assets"].append({"name": "provenance.json", "digest": None, "size": 7})
         result = audit.compare_metadata(pypi, github, project=PROJECT, version=VERSION)
         self.assertEqual(result["status"], "PASS_RECORDED")
 
