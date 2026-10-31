@@ -334,8 +334,10 @@ def test_zip_preflight_rejects_claimed_too_many_entries_before_zipfile(monkeypat
     from markitdown._exceptions import ResourceLimitException
 
     buf = _patch_eocd_counts(_nested_archive("hello.txt", b"ok"), 200)
+
     def forbidden_zipfile(*args, **kwargs):
         raise AssertionError("ZipFile must not be constructed before preflight")
+
     monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
     with pytest.raises(ResourceLimitException, match="entries"):
         _zip_markdown(buf, zip_max_entries=2)
@@ -360,8 +362,10 @@ def test_zip_preflight_rejects_oversize_central_directory_before_zipfile(
     from markitdown._exceptions import ResourceLimitException
 
     buf = _nested_archive("notes.txt", b"ok")
+
     def forbidden_zipfile(*args, **kwargs):
         raise AssertionError("ZipFile must not be constructed before preflight")
+
     monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
     with pytest.raises(ResourceLimitException, match="central directory byte"):
         _zip_markdown(buf, zip_max_directory_bytes=1)
@@ -376,8 +380,10 @@ def test_zip_preflight_rejects_declared_expansion_before_zipfile(monkeypatch):
     central = data.find(b"PK" + bytes((1, 2)))
     assert central >= 0
     struct.pack_into("<I", data, central + 24, 1024 * 1024)
+
     def forbidden_zipfile(*args, **kwargs):
         raise AssertionError("ZipFile must not be constructed before preflight")
+
     monkeypatch.setattr(zipfile, "ZipFile", forbidden_zipfile)
     with pytest.raises(ResourceLimitException, match="member expanded"):
         _zip_markdown(io.BytesIO(data), zip_max_member_bytes=100)
