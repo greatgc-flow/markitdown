@@ -20,6 +20,17 @@ env:
   UV_CONSTRAINT: ${{ github.workspace }}/.github/constraints.txt
 
 jobs:
+  release-policy:
+    # Gate logic itself is tested on PR and main, not only after a tag exists.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'PyYAML>=6,<7'
+      - run: python -m unittest discover -s .github/scripts -p 'test_verify_exact_ci.py' -v
+
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
