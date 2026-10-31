@@ -30,7 +30,7 @@ class TestExactReleaseCI(unittest.TestCase):
         ]
 
     def test_matrix_includes_all_core_ocr_and_mcp_lanes(self) -> None:
-        self.assertEqual(len(self.jobs), 23)
+        self.assertEqual(len(self.jobs), 24)
         self.assertTrue(any(n.startswith("tests (windows-11-vs2026-arm,") for n in self.jobs))
         self.assertTrue(any(n.startswith("ocr-tests (windows-11-vs2026-arm,") for n in self.jobs))
         self.assertTrue(any(n.startswith("mcp-tests (windows-11-vs2026-arm,") for n in self.jobs))
