@@ -87,7 +87,6 @@ class FileConversionException(MarkItDownException):
         super().__init__(message)
 
 
-
 class ZipLimitExceeded(MarkItDownException):
     """Opt-in ZIP resource budget exceeded; must not fall back to another converter."""
 
