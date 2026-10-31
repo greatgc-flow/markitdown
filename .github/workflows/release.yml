@@ -78,8 +78,6 @@ jobs:
           name: release-distributions
           path: dist
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3 (security fixed)
-        with:
-          skip-existing: true
   github-release:
     needs: [build, publish]
     runs-on: ubuntu-latest
@@ -97,7 +95,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobber
+            gh release upload "$RELEASE_TAG" dist/*
           else
             gh release create "$RELEASE_TAG" dist/* --verify-tag --title "$RELEASE_TAG" --generate-notes
           fi
