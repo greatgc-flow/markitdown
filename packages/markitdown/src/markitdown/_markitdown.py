@@ -50,6 +50,7 @@ from ._exceptions import (
     FileConversionException,
     UnsupportedFormatException,
     FailedConversionAttempt,
+    ZipLimitExceeded,
 )
 
 
@@ -689,6 +690,10 @@ class MarkItDown:
                 if _accepts:
                     try:
                         res = converter.convert(file_stream, stream_info, **_kwargs)
+                    except ZipLimitExceeded:
+                        # Resource policy is a hard gate, not a recoverable
+                        # converter error. No alternate parser may bypass it.
+                        raise
                     except Exception:
                         failed_attempts.append(
                             FailedConversionAttempt(
