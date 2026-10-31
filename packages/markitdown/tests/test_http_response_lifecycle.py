@@ -1,4 +1,5 @@
 """Regression: HTTP convert_uri owns the response; convert_response does not."""
+
 import pytest
 import requests
 
